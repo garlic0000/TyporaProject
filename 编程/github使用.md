@@ -1,4 +1,4 @@
-# Github访问
+# github使用
 
 ## 1.加速github访问
 
@@ -41,3 +41,24 @@
 > 1 地址栏输入：about:config  
 > 2 输入首选项名称：security.enterprise_roots.enabled  
 > 3 修改值为：true（本来为true，先改为false，再改为true）
+
+## 3.github上传大文件
+
+github桌面端没法上传大文件
+
+使用git命令行上传
+
+1.git进入本地仓库
+
+2.将上传文件添加到仓库
+
+`git add path/file`
+
+3.提交文件
+
+`git commit -m '更新'`
+
+4.推送到github
+
+`git push`
+
