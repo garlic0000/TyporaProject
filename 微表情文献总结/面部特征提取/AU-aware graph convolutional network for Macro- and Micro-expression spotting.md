@@ -1105,9 +1105,325 @@ model.fit(features_array, labels)
 
 通过计算细粒度的MDMO特征，你可以从面部的不同区域提取出有意义的运动信息，并将其作为模型输入，以提高微表情识别的准确性。这种方法尤其适用于处理小数据集和需要细致分析的任务场景。
 
+#### AUW-GCN模型
+
+##### AU先验编码模块
+
+> 如何表征不同ROIs之间的相关性以及如何构建邻接矩阵
+
+表征不同感兴趣区域（ROIs）之间的相关性并构建邻接矩阵，是使用图神经网络（GCN）处理面部表情识别任务中的关键步骤。以下是相关性表征和邻接矩阵构建的具体步骤。
+
+1. **表征ROIs之间的相关性**
+
+可以通过以下几种方法来表征不同ROIs之间的相关性：
+
+方法1：**基于几何距离**
+
+- 可以使用ROIs的质心（或中心点）之间的欧几里得距离来表征它们的相关性。较短的距离可能表示更强的相关性。
+
+```python
+import numpy as np
+
+def euclidean_distance(centroid1, centroid2):
+    return np.linalg.norm(centroid1 - centroid2)
+
+# 计算所有ROIs质心的距离
+def calculate_distance_matrix(centroids):
+    num_rois = len(centroids)
+    distance_matrix = np.zeros((num_rois, num_rois))
+    for i in range(num_rois):
+        for j in range(num_rois):
+            distance_matrix[i, j] = euclidean_distance(centroids[i], centroids[j])
+    return distance_matrix
+```
+
+方法2：**基于特征相似性**
+
+- 可以通过ROIs的光流特征、颜色直方图、纹理特征等计算它们之间的相似性，使用余弦相似度或皮尔逊相关系数来度量。
+
+```python
+from scipy.spatial.distance import cosine
+from scipy.stats import pearsonr
+
+def cosine_similarity(feature1, feature2):
+    return 1 - cosine(feature1, feature2)
+
+def pearson_correlation(feature1, feature2):
+    return pearsonr(feature1, feature2)[0]
+
+# 计算特征相似性矩阵
+def calculate_similarity_matrix(features, method='cosine'):
+    num_rois = len(features)
+    similarity_matrix = np.zeros((num_rois, num_rois))
+    for i in range(num_rois):
+        for j in range(num_rois):
+            if method == 'cosine':
+                similarity_matrix[i, j] = cosine_similarity(features[i], features[j])
+            elif method == 'pearson':
+                similarity_matrix[i, j] = pearson_correlation(features[i], features[j])
+    return similarity_matrix
+```
+
+2. **构建邻接矩阵**
+
+邻接矩阵通常是一个二值矩阵或加权矩阵，用来表示节点（ROIs）之间的连接情况。
+
+方法1：**基于距离的邻接矩阵**
+
+- 可以为距离较小的ROIs赋予更高的连接权重，或为小于某个阈值的距离赋予1，其他赋0。
+
+```python
+def construct_adjacency_matrix(distance_matrix, threshold):
+    adjacency_matrix = np.where(distance_matrix < threshold, 1, 0)
+    np.fill_diagonal(adjacency_matrix, 0)  # 对角线设为0，不考虑自连接
+    return adjacency_matrix
+```
+
+方法2：**基于相似性的邻接矩阵**
+
+- 可以为相似性较高的ROIs赋予更高的连接权重，或为大于某个阈值的相似性赋予1，其他赋0。
+
+```python
+def construct_adjacency_matrix_from_similarity(similarity_matrix, threshold):
+    adjacency_matrix = np.where(similarity_matrix > threshold, 1, 0)
+    np.fill_diagonal(adjacency_matrix, 0)  # 对角线设为0，不考虑自连接
+    return adjacency_matrix
+```
+
+3. **利用条件概率构建二值图**
+
+- 如果你有AUs的条件概率，可以通过对这些概率设置阈值来构建邻接矩阵。
+- 当AUs之间的条件概率超过某一阈值时，表示它们具有较高的共现概率，故在邻接矩阵中设置为1。
+
+```python
+def construct_adjacency_matrix_from_probabilities(probabilities, threshold):
+    adjacency_matrix = np.where(probabilities > threshold, 1, 0)
+    np.fill_diagonal(adjacency_matrix, 0)  # 对角线设为0，不考虑自连接
+    return adjacency_matrix
+```
+
+4. **示例代码整合**
+
+下面是将上述步骤整合到一个完整流程中的示例代码。
+
+```python
+import numpy as np
+from scipy.spatial.distance import cosine
+from scipy.stats import pearsonr
+
+def euclidean_distance(centroid1, centroid2):
+    return np.linalg.norm(centroid1 - centroid2)
+
+def cosine_similarity(feature1, feature2):
+    return 1 - cosine(feature1, feature2)
+
+def calculate_distance_matrix(centroids):
+    num_rois = len(centroids)
+    distance_matrix = np.zeros((num_rois, num_rois))
+    for i in range(num_rois):
+        for j in range(num_rois):
+            distance_matrix[i, j] = euclidean_distance(centroids[i], centroids[j])
+    return distance_matrix
+
+def calculate_similarity_matrix(features, method='cosine'):
+    num_rois = len(features)
+    similarity_matrix = np.zeros((num_rois, num_rois))
+    for i in range(num_rois):
+        for j in range(num_rois):
+            if method == 'cosine':
+                similarity_matrix[i, j] = cosine_similarity(features[i], features[j])
+            elif method == 'pearson':
+                similarity_matrix[i, j] = pearsonr(features[i], features[j])[0]
+    return similarity_matrix
+
+def construct_adjacency_matrix(distance_matrix, threshold):
+    adjacency_matrix = np.where(distance_matrix < threshold, 1, 0)
+    np.fill_diagonal(adjacency_matrix, 0)  # 对角线设为0，不考虑自连接
+    return adjacency_matrix
+
+def construct_adjacency_matrix_from_similarity(similarity_matrix, threshold):
+    adjacency_matrix = np.where(similarity_matrix > threshold, 1, 0)
+    np.fill_diagonal(adjacency_matrix, 0)
+    return adjacency_matrix
+
+# 示例使用
+centroids = [...]  # ROIs的质心
+features = [...]  # ROIs的特征
+distance_matrix = calculate_distance_matrix(centroids)
+similarity_matrix = calculate_similarity_matrix(features, method='cosine')
+
+adjacency_matrix_distance = construct_adjacency_matrix(distance_matrix, threshold=10)
+adjacency_matrix_similarity = construct_adjacency_matrix_from_similarity(similarity_matrix, threshold=0.5)
+```
+
+总结
+
+通过这些方法，可以有效地表征不同ROIs之间的相关性，并构建邻接矩阵，用于图神经网络的输入。这种方法在微表情识别中能帮助模型更好地理解面部区域之间的关系，进而提高识别性能。
+
+
+
+> 将AUs的共性和相关性联系起来，并将AUs映射到人脸上的特定ROIs
+
+为了将面部动作单元（AUs）的共性和相关性联系起来，并将这些AUs映射到人脸上的特定感兴趣区域（ROIs），我们可以遵循以下步骤。这些步骤旨在构建一个基于AUs与ROIs之间关系的模型，用于面部表情分析任务。
+
+1. **了解AUs和ROIs之间的关系**
+
+- 每个AU对应面部的特定区域。例如，AU1（提眉）通常涉及眉毛区域，AU12（微笑）涉及嘴角区域。
+- 将这些AUs映射到相应的ROIs，可以帮助我们更精确地分析面部的微表情和宏表情。
+
+2. **构建AUs和ROIs的映射表**
+
+首先，我们可以手动定义一个映射表，将每个AU对应到相应的ROIs。这种映射基于面部解剖学知识和AU定义。
+
+**示例映射表：**
+
+| AU编号 | 对应动作               | 对应ROIs   |
+| ------ | ---------------------- | ---------- |
+| AU1    | 提眉                   | 眉毛区域   |
+| AU2    | 提高外眉               | 外眉区域   |
+| AU6    | 眼轮匝肌收缩（鱼尾纹） | 眼周区域   |
+| AU12   | 微笑（嘴角上扬）       | 嘴角区域   |
+| AU15   | 下嘴唇下拉             | 下嘴唇区域 |
+| AU23   | 紧闭唇部               | 唇部区域   |
+
+3. **基于AUs的共性和相关性构建邻接矩阵**
+
+- **共性**：一些AUs经常同时激活，代表某些表情的共同特征，例如AU6和AU12一起常用于表示微笑。可以通过统计不同表情数据集中AUs的共现频率来定义共性。
+- **相关性**：AUs之间的相关性可以通过统计学方法（如皮尔逊相关系数）在历史数据中计算。
+
+**构建邻接矩阵的步骤**：
+
+- 首先计算AUs之间的共现频率或相关系数。
+- 对这些频率或系数设置阈值，来决定是否在邻接矩阵中为两个AUs连接边。
+
+```python
+import numpy as np
+
+def calculate_au_correlation_matrix(au_data):
+    # 假设au_data是一个N x M的矩阵，N是样本数量，M是AU数量
+    # 计算AUs之间的皮尔逊相关系数矩阵
+    correlation_matrix = np.corrcoef(au_data, rowvar=False)
+    return correlation_matrix
+
+def construct_au_adjacency_matrix(correlation_matrix, threshold):
+    # 根据阈值构建二值邻接矩阵
+    adjacency_matrix = np.where(correlation_matrix > threshold, 1, 0)
+    np.fill_diagonal(adjacency_matrix, 0)  # 对角线设为0，不考虑自连接
+    return adjacency_matrix
+```
+
+4. **将AUs映射到ROIs并构建图结构**
+
+- **图的节点**：每个节点代表一个ROI。
+- **图的边**：通过AUs的共性和相关性来构建。例如，如果AU1和AU2具有高相关性且它们分别映射到眉毛和外眉区域，则在这两个ROIs之间添加一条边。
+
+```python
+def map_aus_to_rois(au_to_rois, au_adjacency_matrix):
+    # 假设au_to_rois是一个字典，键是AU编号，值是对应的ROI列表
+    num_rois = len(set(sum(au_to_rois.values(), [])))  # 计算所有唯一的ROIs数量
+    roi_adjacency_matrix = np.zeros((num_rois, num_rois))
+
+    for au1, rois1 in au_to_rois.items():
+        for au2, rois2 in au_to_rois.items():
+            if au_adjacency_matrix[au1, au2] > 0:
+                # 如果两个AUs相关，连接它们对应的ROIs
+                for roi1 in rois1:
+                    for roi2 in rois2:
+                        roi_adjacency_matrix[roi1, roi2] = 1
+                        roi_adjacency_matrix[roi2, roi1] = 1  # 保证对称性
+    return roi_adjacency_matrix
+```
+
+5. **使用构建的图进行特征提取和表情分析**
+
+- 通过上述步骤，你得到了一个基于AUs与ROIs关系的邻接矩阵，这可以作为图神经网络（GCN）模型的输入。
+- GCN可以利用这种图结构，学习不同ROIs之间的关系，提取更加细致的面部表情特征。
+
+6. **示例代码整合**
+
+下面是将AUs和ROIs映射、相关性计算、图结构构建整合到一个完整流程中的示例代码。
+
+```python
+import numpy as np
+
+# 假设我们有以下数据：
+au_to_rois = {
+    1: [0],  # AU1 -> ROI 0 (眉毛)
+    2: [1],  # AU2 -> ROI 1 (外眉)
+    6: [2],  # AU6 -> ROI 2 (眼周)
+    12: [3], # AU12 -> ROI 3 (嘴角)
+    15: [4], # AU15 -> ROI 4 (下嘴唇)
+    23: [5]  # AU23 -> ROI 5 (唇部)
+}
+
+# 示例AU相关性数据
+au_data = np.random.rand(100, 6)  # 假设有100个样本，6个AUs
+
+# 计算AUs相关性矩阵
+correlation_matrix = calculate_au_correlation_matrix(au_data)
+
+# 构建AUs邻接矩阵
+au_adjacency_matrix = construct_au_adjacency_matrix(correlation_matrix, threshold=0.5)
+
+# 将AUs映射到ROIs，并构建ROI邻接矩阵
+roi_adjacency_matrix = map_aus_to_rois(au_to_rois, au_adjacency_matrix)
+
+print("ROI Adjacency Matrix:\n", roi_adjacency_matrix)
+```
+
+总结
+
+通过将AUs的共性和相关性映射到具体的面部ROIs，并构建一个基于图结构的邻接矩阵，可以更好地表征面部不同区域的相互关系。这种方法可以在图神经网络中使用，提升微表情和宏表情识别的准确性和鲁棒性。
+
+
+
+> 如何使用邻接矩阵的形式量化选择的12个ROIs
+
+
+
+> 受[19]的启发，将数据集中的AU信息作为先验信息编码到GCN中
+>
+> [19]Ling Lo, Hong-Xia Xie, Hong-Han Shuai, and Wen-Huang Cheng, “Mer-gcn: Micro-expression recognition based on relation modeling with graph convolutional networks,” in 2020 IEEE Conference on Multimedia Information Processing and Retrieval (MIPR). IEEE, 2020, pp. 79–84.
+
+
+
+##### 空间嵌入模块
+
+> 使用GCN作为空间特征嵌入模块(SFEM)的基本构建块
+
+
+
+##### 时间特征嵌入模块
+
+
+
+##### 生成模块
+
+
+
+##### 后期处理
+
+
+
+#### 优化
+
+> 将微表情的定位任务转化为一个常见的分类问题，针对不同类型的帧设计了一个二分类任务和一个三分类任务
+
+
+
+> 为了应对数据不平衡，选择Focal Loss作为基本损失函数
+
+
+
+> 使用滑动窗口技术将长视频分割成片段
+
+
+
 
 
 ### 实验
+
+#### 实验设置
 
 > 根据MEGC2021[27]的协议，我们在实验中采用了Leave-One-Subject-Out (LOSO)交叉验证策略。
 
@@ -1173,6 +1489,12 @@ k折交叉验证的缺点：
 k折交叉验证是机器学习中广泛应用的一种验证方法，它能够提供关于模型泛化能力的较为可靠的估计。
 
 来源：ChatGPT
+
+#### 实验结果
+
+#### 案例研究
+
+
 
 ## 论文重点分析
 
