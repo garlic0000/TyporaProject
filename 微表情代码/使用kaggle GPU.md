@@ -5,3 +5,5 @@
 [解决Kaggele无法下载输出output文件夹下的文件](https://blog.csdn.net/Yslin_/article/details/122353340)
 
 模仿yolov5将代码上传至github，再从kaggle下载github上的代码进行运行，可随时更改和同步代码
+
+之前使用
