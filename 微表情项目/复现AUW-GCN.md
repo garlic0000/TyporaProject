@@ -33,7 +33,7 @@
 
 Ubuntu 20.04
 
-> OS: Ubuntu 20.04.4 LTS
+> OS: Ubuntu 20.04.6 LTS
 >
 > Python: 3.10  
 >
