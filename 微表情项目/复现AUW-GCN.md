@@ -127,6 +127,33 @@ CUDA默认的python版本为python3.10
 
 这样操作下来会无法再使用conda，因此使用pip进行python软件的安装和管理。
 
+**注意**
+
+这样下来会破坏kaggle的内核。在进行save version连续运行时会有问题。运行到最后系统会检查内核，只有内核完整才能成功运行完成，并保存结果。
+
+对上面的代码的更改
+
+```bash
+# 配置python3.8环境
+# Create New Conda Environment and Use Conda Channel 
+!conda create -n newCondaEnvironment -c cctbx202208 python=3.8 -y
+!source /opt/conda/bin/activate newCondaEnvironment && conda install -c cctbx202208 python=3.8 -y
+# 使用/opt/conda/envs/newCondaEnvironment/bin/python 运行python脚本
+!/opt/conda/envs/newCondaEnvironment/bin/python --version
+
+# 使用/opt/conda/envs/newCondaEnvironment/bin/pip进行依赖的安装
+!/opt/conda/envs/newCondaEnvironment/bin/pip --version
+!/opt/conda/envs/newCondaEnvironment/bin/pip install --upgrade pip 
+```
+
+关于`-c cctbx202208`
+
+系统中提示使用`conda update -n base -c conda-forge conda`来升级conda，这里也有一个`-c`参数
+
+这两有什么不一样？使用`-c conda-forge`能否安装python3.8？
+
+`-c`是`channel`的缩写，在conda中，`channel`是包的存储位置，可以视为软件仓库。指定`-c`选项，就是告诉conda从特定的channel中搜索和安装包。对于安装特定版本的软件或从第三方源安装软件非常有用。
+
 关于项目中requirements.txt的说明：
 
 **1.torch版本问题**
@@ -233,7 +260,103 @@ nvidia-cudnn-cu12
 ```sh
 !pip install --upgrade pip
 !pip install -r /kaggle/working/ME-GCN-Project/requirements_no_version.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --default-timeout=100
+
+
 ```
+
+**5.使用kaggle原生环境cuda12.x和python3.10不知是否可行**
+
+经过测试是可行的
+
+ubuntu22.04 python3.10 cuda12.3 完全可行
+
+requirements.txt的不写版本号
+
+再进行这样的更改
+
+```
+nvidia-cublas-cu11==11.10.3.66
+nvidia-cuda-nvrtc-cu11==11.7.99
+nvidia-cuda-runtime-cu11==11.7.99
+nvidia-cudnn-cu11==8.5.0.96
+```
+
+修改为
+
+```
+nvidia-cublas-cu12
+nvidia-cuda-nvrtc-cu12
+nvidia-cuda-runtime-cu12
+nvidia-cudnn-cu12
+```
+
+其中有警告，不影响正常运行，警告内容为
+
+```bash
+/opt/conda/lib/python3.10/multiprocessing/popen_fork.py:66: RuntimeWarning: os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock.
+  self.pid = os.fork()
+```
+
+因为`os.fork()`在使用多线程代码时可能会导致死锁，特别是与JAX（加速线性代数库）的多线程工作原理冲突。
+
+使用`spawn`而不是`fork`，python的`multiprocessing` 库默认使用`fork`来创建子进程，但在多线程应用中，可能会出现问题，通过设置`multiprocessing` 的启动方式为`spawn`来避免这种问题
+
+在代码的入口出添加以下代码：
+
+```python
+import multiprocessing
+
+if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn")
+    
+```
+
+这样修改后非常的慢
+
+在 Python 的 `multiprocessing` 模块中，不同的启动方式（start methods）用于创建新进程。主要的启动方式有三种：`fork`、`spawn` 和 `forkserver`。它们的工作方式和使用场景各不相同。下面解释 `spawn` 和 `fork` 以及它们的区别：
+
+1. **fork**
+
+`fork` 是 Unix（包括 Linux 和 macOS）系统上的默认启动方式。
+
+- **工作原理**：`fork` 通过复制父进程的内存空间来创建子进程。子进程几乎是父进程的完整副本，继承了父进程的全局状态（包括所有内存中的数据、代码、打开的文件描述符等）。
+- 优点：
+  - 启动速度快，因为不需要重新加载 Python 解释器或模块。
+  - 子进程继承父进程的状态，可以直接访问父进程的全局变量。
+- 缺点：
+  - 如果父进程使用了多线程，`fork` 可能会导致一些问题，比如死锁，特别是在使用多线程或像 `JAX` 这样的库时。
+  - 某些资源的继承可能会导致不可预知的行为，特别是在跨平台代码中。
+
+2. **spawn**
+
+`spawn` 是 Windows 系统上的默认启动方式，也可用于 Unix 系统。
+
+- **工作原理**：`spawn` 创建一个全新的 Python 解释器实例，并通过导入模块和运行特定代码来启动进程。父进程不会自动将任何全局状态传递给子进程，所有需要的数据都必须通过显式的方式（如通过函数参数）传递给子进程。
+- 优点：
+  - 适合多线程程序，因为它不会继承父进程的线程状态，避免了 `fork` 导致的死锁或不稳定性问题。
+  - 由于不会继承父进程的全局状态，更适合跨平台代码，尤其是在 Windows 上。
+- 缺点：
+  - 启动速度较慢，因为每个新进程都需要重新加载 Python 解释器和所有依赖模块。
+  - 需要显式传递父进程的数据，无法直接访问父进程的全局变量。
+
+3. **forkserver**
+
+`forkserver` 是在 Unix 上的一种可选方式，不是默认的。
+
+- **工作原理**：当你使用 `forkserver` 时，Python 会启动一个守护进程（fork server），然后通过该守护进程来生成新的子进程。守护进程通过 `fork` 来创建进程，因此继承了最初父进程的状态，但新的进程不会直接从当前父进程中 `fork`。
+- 优点：
+  - 避免了多线程和 `fork` 可能带来的问题。
+  - 比 `spawn` 启动更快，因为进程是从守护进程而不是完全新建的环境中生成的。
+- 缺点：
+  - 守护进程始终保持运行，可能会占用资源。
+  - 仅在支持 `fork` 的 Unix 系统上可用，Windows 上不可用。
+
+**总结：`fork` vs `spawn`**
+
+- **`fork`**：更快，继承父进程的状态，但在多线程环境中可能不安全。
+- **`spawn`**：更安全，适合多线程和跨平台代码，但启动较慢，因为它会启动全新的进程。
+
+在使用 JAX 等多线程库时，使用 `spawn` 启动方式通常更安全。
 
 ### 配置CUDA环境
 
@@ -1149,7 +1272,95 @@ os.chdir('..')  # 返回上级目录
 
 按照以上顺序即可安装ffmpeg，ffmpeg是安装opencv的基础和前提。
 
+使用apt-get的方式安装
+
+```bash
+!sudo apt-get update -y
+!sudo apt-get upgrade -y
+# 安装nasm yasm
+!sudo apt-get install nasm yasm -y
+# 安装x264 x265
+!sudo apt-get install libx264-dev libx265-dev -y
+# 安装 libvpx
+!sudo apt-get install libvpx-dev -y
+# 安装ffmpeg
+!sudo apt-get install ffmpeg -y
+```
+
+注意要更新同步环境变量
+
+检测安装
+
+```bash
+!nasm -v
+!yasm --version
+# No package 'x264' found
+!pkg-config --modversion x264
+!pkg-config --modversion x265
+# No package 'vpx' found
+!pkg-config --modversion vpx
+!ffmpeg -codecs | grep libx264
+!ffmpeg -codecs | grep libx265
+!ffmpeg -codecs | grep libvpx
+!ffmpeg -version
+```
+
+
+
 ### 配置openGL
+
+> ```bash
+> OpenGL support:              
+> YES (/usr/lib/x86_64-linux-gnu/libOpenGL.so /usr/lib/x86_64-linux-gnu/libGLX.so /usr/lib/x86_64-linux-gnu/libGLU.so)
+> ```
+
+不知道啥情况就支持了
+
+编译安装
+
+```bash
+!git clone https://gitlab.gnome.org/Archive/gtkglext.git
+!cd gtkglext && ./autogen.sh && make && sudo make install
+```
+
+还创建了软链接
+
+```bash
+# !ln -sf /usr/bin/glib-mkenums /usr/lib/bin/glib-mkenums
+import subprocess
+# 删除现有的符号链接或目录（如果存在）
+subprocess.run(['sudo', 'rm', '-rf', '/usr/lib/bin'], check=True)
+# 创建新的符号链接
+subprocess.run(['sudo', 'ln', '-s', '/usr/bin', '/usr/lib/bin'], check=True)
+
+# 检查符号链接的目标路径
+result = subprocess.run(['readlink', '-f', '/usr/lib/bin'], capture_output=True, text=True)
+print(f"/usr/lib/bin points to: {result.stdout.strip()}")
+```
+
+但是报错了
+
+> ```bash
+> make[4]: *** No rule to make target 'GdkGLExt-1.0.typelib', needed by 'all-am'.  Stop.
+> make[4]: Leaving directory '/kaggle/working/gtkglext/gdk'
+> make[3]: *** [Makefile:933: all-recursive] Error 1
+> make[3]: Leaving directory '/kaggle/working/gtkglext/gdk'
+> make[2]: *** [Makefile:670: all] Error 2
+> make[2]: Leaving directory '/kaggle/working/gtkglext/gdk'
+> make[1]: *** [Makefile:574: all-recursive] Error 1
+> make[1]: Leaving directory '/kaggle/working/gtkglext'
+> make: *** [Makefile:475: all] Error 2
+> ```
+
+与这个报错信息一起的还有openGL相关的信息
+
+不知道是否与从源码编译安装gtkglext有关？
+
+还需要测试，各种依赖包已经安装完。
+
+测试完后是无关的。
+
+
 
 在安装openGL的过程中发现Kaggle服务器没有显示器，不支持安装openGL
 
@@ -1375,6 +1586,8 @@ subprocess.run(['sudo', 'apt-get', 'install', '-y'] + required_packages, check=T
 
 #### 在cmake中的各种路径
 
+注意：**行尾反斜杠**：每个选项的末尾有一个反斜杠 `\`，确保它们是命令行继续符，不要在它们后面加注释，这样可以避免命令解析问题。
+
 **1.cuda路径配置**
 
 ```bash
@@ -1409,6 +1622,582 @@ subprocess.run(['sudo', 'apt-get', 'install', '-y'] + required_packages, check=T
 '-DCUDA_ARCH_BIN=6.0', '-DCUDA_ARCH_PTX=6.0', # 目标架构的二进制代码（BIN）和PTX代码的版本
 '-DOPENCV_CMAKE_CUDA_DEBUG=1', # 开启cmake对cuda的调试
 ```
+
+**3.不存在的地址`/usr/lib/include`**
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/usr/lib/include"
+> 
+>   in its INTERFACE_INCLUDE_DIRECTORIES.  Possible reasons include:
+> 
+>   * The path was deleted, renamed, or moved to another location.
+> 
+>   * An install or uninstall procedure did not complete successfully.
+> 
+>   * The installation package was faulty and references files it does not
+>   provide.
+> ```
+
+首先发现`--   Found gtk+-2.0, version 2.24.33`，即已经安装，但是有警告
+
+> ```bash
+> CMake Warning at cmake/OpenCVUtils.cmake:885 (message):
+>   ocv_check_modules(GTHREAD): can't find library 'gthread-2.0'.  Specify
+>   'pkgcfg_lib_GTHREAD_gthread-2.0' manually
+> Call Stack (most recent call first):
+>   modules/highgui/cmake/detect_gtk.cmake:23 (ocv_check_modules)
+>   modules/highgui/cmake/init.cmake:35 (include)
+>   modules/highgui/cmake/init.cmake:39 (add_backend)
+>   cmake/OpenCVModule.cmake:298 (include)
+>   cmake/OpenCVModule.cmake:361 (_add_modules_1)
+>   cmake/OpenCVModule.cmake:408 (ocv_glob_modules)
+>   CMakeLists.txt:1076 (ocv_register_modules)
+> ```
+
+由于是警告，所以先别管，先解决错误
+
+错误表明在构建 OpenCV 时，CMake 试图导入 GTK2 的相关路径 `/usr/lib/include`，但该路径并不存在。
+
+先确定GTK2 的头文件路径是否在 `/usr/include/`
+
+```python
+import subprocess
+subprocess.run(['sudo', 'mkdir', '-p', '/usr/lib/include'], check=True)
+# ln -sf 强制覆盖已存在的链接文件
+subprocess.run(['sudo', 'ln', '-sf', '/usr/include', '/usr/lib/include'], check=True)
+```
+
+使用这个暂时可以解决，但是不能解决这个路径下的文件夹的链接问题，比如以下报错
+
+**4.不存在的地址`/usr/lib/include/freetype2`**
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/usr/lib/include/freetype2"
+> ```
+
+使用以下命令好像可以解决
+
+```bash
+!sudo apt-get update -y
+!sudo apt-get install libfreetype6-dev -y
+```
+
+**5.不存在的地址`/usr/lib/include/gtk-2.0`**
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/usr/lib/include/gtk-2.0"
+> 
+>   in its INTERFACE_INCLUDE_DIRECTORIES.  Possible reasons include:
+> 
+>   * The path was deleted, renamed, or moved to another location.
+> 
+>   * An install or uninstall procedure did not complete successfully.
+> 
+>   * The installation package was faulty and references files it does not
+>   provide.
+> ```
+
+使用以下代码
+
+```python
+import subprocess
+subprocess.run(['sudo', 'mkdir', '-p', '/usr/lib/include/gtk-2.0'], check=True)
+subprocess.run(['sudo', 'ln', '-sf', '/usr/include/gtk-2.0', '/usr/lib/include/gtk-2.0'], check=True)
+```
+
+**6.不存在的地址`/usr/lib/lib/x86_64-linux-gnu/gtk-2.0/include`**
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/usr/lib/lib/x86_64-linux-gnu/gtk-2.0/include"
+> 
+>   in its INTERFACE_INCLUDE_DIRECTORIES.  Possible reasons include:
+> 
+>   * The path was deleted, renamed, or moved to another location.
+> 
+>   * An install or uninstall procedure did not complete successfully.
+> 
+>   * The installation package was faulty and references files it does not
+>   provide.
+> ```
+
+但是，添加的 `-DCMAKE_INCLUDE_PATH=/usr/include` 是告诉 CMake 将 `/usr/include` 作为包含路径，但这可能并不能直接解决 GTK2 相关的路径问题，因为 GTK2 的头文件通常位于 `/usr/include/gtk-2.0` 下，而不是直接在 `/usr/include` 下
+
+```python
+import subprocess
+subprocess.run(['sudo', 'mkdir', '-p', '/usr/lib/lib/x86_64-linux-gnu/gtk-2.0/include'], check=True)
+subprocess.run(['sudo', 'ln', '-sf', '/usr/lib/x86_64-linux-gnu/gtk-2.0/include', '/usr/lib/lib/x86_64-linux-gnu/gtk-2.0/include'], check=True)
+```
+
+**7.不存在的地址`/usr/lib/include/pango-1.0`**
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/usr/lib/include/pango-1.0"
+> 
+>   in its INTERFACE_INCLUDE_DIRECTORIES.  Possible reasons include:
+> 
+>   * The path was deleted, renamed, or moved to another location.
+> 
+>   * An install or uninstall procedure did not complete successfully.
+> 
+>   * The installation package was faulty and references files it does not
+>   provide.
+> ```
+
+使用以下代码
+
+```python
+import subprocess
+subprocess.run(['sudo', 'mkdir', '-p', '/usr/lib/include/pango-1.0'], check=True)
+subprocess.run(['sudo', 'ln', '-sf', '/usr/include/pango-1.0', '/usr/lib/include/pango-1.0'], check=True)
+```
+
+**8.不存在的地址`/usr/lib/include/atk-1.0`**
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/usr/lib/include/atk-1.0"
+> 
+>   in its INTERFACE_INCLUDE_DIRECTORIES.  Possible reasons include:
+> 
+>   * The path was deleted, renamed, or moved to another location.
+> 
+>   * An install or uninstall procedure did not complete successfully.
+> 
+>   * The installation package was faulty and references files it does not
+>   provide.
+> ```
+
+可使用以下代码
+
+```python
+import subprocess
+subprocess.run(['sudo', 'mkdir', '-p', '/usr/lib/include/atk-1.0'], check=True)
+subprocess.run(['sudo', 'ln', '-sf', '/usr/include/atk-1.0', '/usr/lib/include/atk-1.0'], check=True)
+```
+
+**9.创建文件夹`/usr/lib/include`的符号链接**
+
+由于有太多`/usr/lib/include`下的文件夹的符号链接需要创建
+
+使用以下代码
+
+```python
+import subprocess
+# 删除现有的符号链接（如果存在）
+subprocess.run(['sudo', 'rm', '-rf', '/usr/lib/include'], check=True)
+
+# 创建新的符号链接
+subprocess.run(['sudo', 'ln', '-s', '/usr/include', '/usr/lib/include'], check=True)
+
+# 检查符号链接
+result = subprocess.run(['readlink', '/usr/lib/include'], capture_output=True, text=True)
+print(f"/usr/lib/include points to: {result.stdout.strip()}")
+```
+
+
+
+**10.创建文件夹`/usr/lib/lib`的符号链接**
+
+为了防止出现像`/usr/lib/include`那样类似的事
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/usr/lib/lib/x86_64-linux-gnu/gtk-2.0/include"
+> 
+>   in its INTERFACE_INCLUDE_DIRECTORIES.  Possible reasons include:
+> 
+>   * The path was deleted, renamed, or moved to another location.
+> 
+>   * An install or uninstall procedure did not complete successfully.
+> 
+>   * The installation package was faulty and references files it does not
+>   provide.
+> ```
+
+使用以下代码
+
+```python
+import subprocess
+# 删除现有的符号链接或目录（如果存在）
+subprocess.run(['sudo', 'rm', '-rf', '/usr/lib/lib'], check=True)
+# 创建新的符号链接
+subprocess.run(['sudo', 'ln', '-s', '/usr/lib', '/usr/lib/lib'], check=True)
+
+# 检查符号链接的目标路径
+result = subprocess.run(['readlink', '-f', '/usr/lib/lib'], capture_output=True, text=True)
+print(f"/usr/lib/lib points to: {result.stdout.strip()}")
+```
+
+**11.编译时未能找到 `stdlib.h`**
+
+> ```bash
+> In file included from /usr/include/c++/9/ext/string_conversions.h:41,
+>                  from /usr/include/c++/9/bits/basic_string.h:6496,
+>                  from /usr/include/c++/9/string:55,
+>                  from /usr/include/c++/9/bits/locale_classes.h:40,
+>                  from /usr/include/c++/9/bits/ios_base.h:41,
+>                  from /usr/include/c++/9/ios:42,
+>                  from /usr/include/c++/9/ostream:38,
+>                  from /usr/include/c++/9/iostream:39,
+>                  from /kaggle/working/opencv_build/opencv/3rdparty/openexr/Half/half.h:89,
+>                  from /kaggle/working/opencv_build/opencv/3rdparty/openexr/Half/half.cpp:48:
+> /usr/include/c++/9/cstdlib:75:15: fatal error: stdlib.h: No such file or directory
+>    75 | #include_next <stdlib.h>
+>       |               ^~~~~~~~~~
+> compilation terminated.
+> make[2]: *** [3rdparty/openexr/CMakeFiles/IlmImf.dir/build.make:63: 3rdparty/openexr/CMakeFiles/IlmImf.dir/Half/half.cpp.o] Error 1
+> make[1]: *** [CMakeFiles/Makefile2:3367: 3rdparty/openexr/CMakeFiles/IlmImf.dir/all] Error 2
+> make[1]: *** Waiting for unfinished jobs....
+> ```
+
+
+
+```
+```
+
+12.
+
+> ```bash
+> !echo | gcc -E -Wp,-v -
+> --------------------------------------------------------------------------------
+> ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"
+> ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/9/include-fixed"
+> ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/9/../../../../x86_64-linux-gnu/include"
+> #include "..." search starts here:
+> #include <...> search starts here:
+>  /usr/lib/gcc/x86_64-linux-gnu/9/include
+>  /usr/local/include
+>  /usr/include/x86_64-linux-gnu
+>  /usr/include
+> End of search list.
+> # 1 "<stdin>"
+> # 1 "<built-in>"
+> # 1 "<command-line>"
+> # 31 "<command-line>"
+> # 1 "/usr/include/stdc-predef.h" 1 3 4
+> # 32 "<command-line>" 2
+> # 1 "<stdin>"
+> ```
+
+输出中有一些“忽略不存在的目录”提示，尽管这些目录可能不是必需的，但如果某些配置文件或者环境依赖这些路径，这可能会引发错误
+
+创建以下这些目录
+
+```bash
+!sudo mkdir -p /usr/local/include/x86_64-linux-gnu
+!sudo mkdir -p /usr/lib/gcc/x86_64-linux-gnu/9/include-fixed
+!sudo mkdir -p /usr/lib/x86_64-linux-gnu/include
+!sudo mkdir -p /usr/lib/gcc/x86_64-linux-gnu/9/../../../../x86_64-linux-gnu/include
+```
+
+
+
+**13.环境变量重复**
+
+> ```bash
+> !g++ -E -x c++ - -v < /dev/null
+> 
+> ------------------------------------
+> ignoring duplicate directory "/usr/include/"
+> ignoring duplicate directory "/usr/include/"
+> ignoring duplicate directory "/usr/include/"
+> ignoring duplicate directory "/usr/include/"
+> ignoring duplicate directory "/usr/include/x86_64-linux-gnu/c++/9"
+> ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"
+> ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/9/include-fixed"
+> ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/9/../../../../x86_64-linux-gnu/include"
+> ignoring duplicate directory "/usr/include"
+> #include "..." search starts here:
+> #include <...> search starts here:
+>  /usr/include/
+>  .
+>  /usr/include/c++/9
+>  /usr/include/x86_64-linux-gnu/c++/9
+>  /usr/include/c++/9/backward
+>  /usr/lib/gcc/x86_64-linux-gnu/9/include
+>  /usr/local/include
+>  /usr/include/x86_64-linux-gnu
+> End of search list.
+> # 1 "<stdin>"
+> # 1 "<built-in>"
+> # 1 "<command-line>"
+> # 1 "/usr/include/stdc-predef.h" 1 3
+> # 1 "<command-line>" 2
+> # 1 "<stdin>"
+> ```
+
+使用以下代码
+
+```python
+import os
+
+def remove_duplicates(path):
+    # 将路径分隔符冒号分隔的字符串分割成列表
+    dirs = path.split(':')
+    # 去除重复的目录
+    unique_dirs = list(dict.fromkeys(dirs))
+    # 将去重后的目录列表重新连接成字符串
+    return ':'.join(unique_dirs)
+import os
+import subprocess
+
+# 获取当前的 CPLUS_INCLUDE_PATH
+cplus_include_path = os.environ.get('CPLUS_INCLUDE_PATH', '')
+# 去除重复目录
+updated_path = remove_duplicates(cplus_include_path)
+# 更新环境变量
+os.environ['CPLUS_INCLUDE_PATH'] = updated_path
+# 输出更新后的 CPLUS_INCLUDE_PATH
+print(f"Updated CPLUS_INCLUDE_PATH: {os.environ['CPLUS_INCLUDE_PATH']}")
+```
+
+14.不使用环境变量
+
+因为之前发现环境变量重复，当不使用环境变量时
+
+> ```bash
+> /usr/bin/cmake: /opt/conda/lib/libcurl.so.4: no version information available (required by /usr/bin/cmake)
+> ```
+
+> ```bash
+> CMake Error in modules/highgui/CMakeLists.txt:
+>   Imported target "ocv.3rdparty.gtk2" includes non-existent path
+> 
+>     "/opt/conda/include/glib-2.0"
+> 
+>   in its INTERFACE_INCLUDE_DIRECTORIES.  Possible reasons include:
+> 
+>   * The path was deleted, renamed, or moved to another location.
+> 
+>   * An install or uninstall procedure did not complete successfully.
+> 
+>   * The installation package was faulty and references files it does not
+>   provide.
+> ```
+
+15.配置`-DWITH_ADE=OFF`
+
+```bash
+# # Scanning dependencies of target ade
+!git clone https://github.com/opencv/ade.git
+!cd ade && mkdir build && cd build && cmake .. && make -j$(nproc) && sudo make install
+# In file included from /usr/include/c++/9/bits/stl_algo.h:59,
+#                  from /usr/include/c++/9/algorithm:62,
+#                  from /kaggle/working/ade/sources/ade/source/alloc.cpp:12:
+# /usr/include/c++/9/cstdlib:75:15: fatal error: stdlib.h: No such file or directory
+#    75 | #include_next <stdlib.h>
+#       |               ^~~~~~~~~~
+# compilation terminated.
+# make[2]: *** [sources/ade/CMakeFiles/ade.dir/build.make:63: sources/ade/CMakeFiles/ade.dir/source/alloc.cpp.o] Error 1
+
+# 在cmake中配置-DWITH_ADE=OFF
+```
+
+16.cmake命令中间有注释会报错
+
+注释掉-DCUDA_GENERATION=Auto 自动检测的架构
+
+cmake中的代码配置为
+
+```bash
+cmake \
+    -DBUILD_EXAMPLES=OFF \
+    -DWITH_QT=OFF \
+    # -DCUDA_GENERATION=Auto
+    -DCUDA_GENERATION=Major6 \
+    ...
+    ..
+```
+
+会报错
+
+17.配置`-DCUDA_GENERATION=Major6`
+
+> ```bash
+> CMake Error at cmake/OpenCVDetectCUDAUtils.cmake:123 (message):
+>   ERROR: Maxwell, Pascal, Volta, Turing, Ampere, Lovelace, Hopper, Auto
+>   Generations are supported.
+> Call Stack (most recent call first):
+>   cmake/OpenCVDetectCUDAUtils.cmake:229 (ocv_initialize_nvidia_device_generations)
+>   cmake/OpenCVDetectCUDA.cmake:76 (ocv_set_cuda_arch_bin_and_ptx)
+>   cmake/OpenCVFindLibsPerf.cmake:46 (include)
+>   CMakeLists.txt:830 (include)
+> ```
+
+配置为
+
+```bash
+cmake \
+    -DBUILD_EXAMPLES=OFF \
+    -DWITH_QT=OFF \
+    -DCUDA_GENERATION=Pascal \
+    ...
+    ..
+```
+
+输出正常
+
+```bash
+-- CUDA: NVCC target flags -gencode;arch=compute_60,code=sm_60;-gencode;arch=compute_61,code=sm_61;-D_FORCE_INLINES
+```
+
+**18.配置python绑定相关**
+
+```bash
+cmake \
+	...
+	-DBUILD_opencv_python2=OFF \
+    -DBUILD_NEW_PYTHON_SUPPORT=ON \
+    -DBUILD_opencv_python3=ON \
+    -DHAVE_opencv_python3=ON \
+    -DPYTHON_EXECUTABLE=/opt/conda/bin/python3 \
+    -DPYTHON_DEFAULT_EXECUTABLE=/opt/conda/bin/python3 \
+    -DPYTHON3_EXECUTABLE=/opt/conda/bin/python3 \
+    -DPYTHON3_INCLUDE_DIR=/opt/conda/envs/newCondaEnvironment/include/python3.8 \
+    -DPYTHON3_LIBRARY=/opt/conda/envs/newCondaEnvironment/lib/libpython3.8.so \
+    -DPYTHON3_NUMPY_INCLUDE_DIRS=/opt/conda/envs/newCondaEnvironment/lib/python3.8/site-packages/numpy/core/include \
+    -DPYTHON3_PACKAGES_PATH=/opt/conda/envs/newCondaEnvironment/lib/python3.8/site-packages \
+    ...
+    ..
+```
+
+> ```
+> --     Limited API:                 NO
+> ```
+
+绑定python
+
+```
+-DOPENCV_ENABLE_PYTHON=ON
+-DOPENCV_PYTHON3_LIMITED_API=ON
+```
+
+配置成python3.10
+
+```shell
+cmake \
+	...	
+	-DPYTHON_EXECUTABLE=/opt/conda/bin/python3 \
+    -DPYTHON_DEFAULT_EXECUTABLE=/opt/conda/bin/python3 \
+    -DPYTHON3_EXECUTABLE=/opt/conda/bin/python3 \
+    -DPYTHON3_INCLUDE_DIR=/opt/conda/include/python3.10 \
+    -DPYTHON3_LIBRARY=/opt/conda/lib/libpython3.10.so \
+    -DPYTHON3_NUMPY_INCLUDE_DIRS=/opt/conda/lib/python3.10/site-packages/numpy/core/include \
+    -DPYTHON3_PACKAGES_PATH=/opt/conda/lib/python3.10/site-packages \
+    ...
+    ..
+```
+
+
+
+19.启用深度学习相关
+
+```
+-DBUILD_opencv_dnn=ON \
+```
+
+20.指定
+
+> ```
+> ```
+>
+> 
+
+```
+-DOpenBLAS_DIR=/usr/lib/x86_64-linux-gnu/openblas-pthread \
+```
+
+21.
+
+> ```bash
+> -- Module opencv_ovis disabled because OGRE3D was not found
+> -- Checking SFM glog/gflags deps... FALSE
+> -- Module opencv_sfm disabled because the following dependencies are not found: Glog/Gflags
+> ```
+>
+> 
+
+`/lib/x86_64-linux-gnu`加入`LD_LIBRARY_PATH`
+
+> ```bash
+> !ldconfig -p | grep atlas
+> liblapack_atlas.so.3 (libc6,x86-64) => /lib/x86_64-linux-gnu/liblapack_atlas.so.3
+> 	liblapack_atlas.so (libc6,x86-64) => /lib/x86_64-linux-gnu/liblapack_atlas.so
+> 	libatlas.so.3 (libc6,x86-64) => /lib/x86_64-linux-gnu/libatlas.so.3
+> 	libatlas.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libatlas.so
+> ```
+
+> ```bash
+> !ldconfig -p | grep glog
+> libglog.so.0 (libc6,x86-64) => /lib/x86_64-linux-gnu/libglog.so.0
+> 	libglog.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libglog.so
+> ```
+
+> ```bash
+> !ldconfig -p | grep gflags
+> libgflags_nothreads.so.2.2 (libc6,x86-64) => /lib/x86_64-linux-gnu/libgflags_nothreads.so.2.2
+> 	libgflags_nothreads.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libgflags_nothreads.so
+> 	libgflags.so.2.2 (libc6,x86-64) => /lib/x86_64-linux-gnu/libgflags.so.2.2
+> 	libgflags.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libgflags.so
+> ```
+
+> ```bash
+> !ldconfig -p | grep lapack
+> liblapack_atlas.so.3 (libc6,x86-64) => /lib/x86_64-linux-gnu/liblapack_atlas.so.3
+> 	liblapack_atlas.so (libc6,x86-64) => /lib/x86_64-linux-gnu/liblapack_atlas.so
+> 	liblapack.so.3 (libc6,x86-64) => /lib/x86_64-linux-gnu/liblapack.so.3
+> 	liblapack.so (libc6,x86-64) => /lib/x86_64-linux-gnu/liblapack.so
+> ```
+
+> ```bash
+> !ldconfig -p | grep openblas
+> 
+> libopenblas.so.0 (libc6,x86-64) => /lib/x86_64-linux-gnu/libopenblas.so.0
+> 	libopenblas.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libopenblas.so
+> ```
+>
+> 
+
+22.
+
+```
+-DOGRE_INCLUDE_DIR=/usr/lib/include/OGRE \
+    -DOGRE_LIBRARY=/usr/lib/lib/x86_64-linux-gnu/libOgreMain.so
+```
+
+23.`/opt/conda/lib/`加入`LD_LIBRARY_PATH`
+
+
+
+加入后开始报错
+
+```
+```
+
+`/opt/conda/lib`本身就在`LD_LIBRARY_PATH`中，只是就在最后
+
+
+
+
 
 
 
@@ -2294,6 +3083,20 @@ F1-Score =  0.3733
 在数据集CAS(ME)2上和数据集SAMM-LV上，复现的结果中宏表情和综合F1分数均高于源项目的F1分数。可能的原因是CUDA版本。
 源项目使用的CUDA版本是10.2，但是在Kaggle服务器中使用CUDA12.1也可以进行模型的训练，因此可能的原因是CUDA。
 
+每次运行的结果都不一样，有时高有时低，结果不稳定，不知与什么有关？
+
+多环境测试：
+
+1.Ubuntu20.04 python3.8 pytorch1.13.1 cuda12.1
+
+2.Ubuntu 22.04 python3.10 pytorch 2.4 cuda 12.3
+
+这两个环境的运行结果差异很大，一个宏表情以之前的高，但微表情低
+
+一个宏表情比之前低，但微表情高
+
+是否要控制变量
+
 ## 运行问题
 
 1.关于num workers的设置
@@ -2356,6 +3159,12 @@ elif cfg['name'] == 'Resnet50':
 参考网站：
 
 [UserWarning: Default grid_sample and affine_grid behavior has changed to align_corners=False since 1-CSDN博客](https://blog.csdn.net/m0_51233386/article/details/128489132)
+
+4.关于os.fork
+
+5.关于weights_only=True
+
+
 
 4.关于gio/gio.h
 
