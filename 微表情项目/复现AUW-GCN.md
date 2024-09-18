@@ -623,8 +623,6 @@ Cuda compilation tools, release 11.7, V11.7.64
 Build cuda_11.7.r11.7/compiler.31294372_0
 ```
 
-
-
 **安装cuda12.1**
 
 cuda10.2在ubuntu22.04中使用起来很不方便
@@ -637,11 +635,41 @@ cuda10.2在ubuntu22.04中使用起来很不方便
 
 安装cuda12.1也无法解决cmake无法识别系统架构的问题
 
+**安装cuda12.3**
+
+在Ubuntu 20.04中，可以直接使用apt-get的命令安装cuda12.3
+
+但是安装cuda12.1却会提示不支持。但是Kaggle中预置的cuda版本就是cuda12.1
+
+```bash
+!sudo apt-get install cuda-toolkit-12-3 -y
+```
+
+使用这个命令安装的cuda在opencv的cmake指定相关的路径后，之前没法同时检测下面两项
+
+> ```
+> -DCUDA_ARCH_BIN=6.0 \
+> -DCUDA_ARCH_PTX=6.0 \
+> ```
+
+现在可以检测下面两项了。
+
+但是cuda的路径配置似乎有问题了。kaggle不知能否将默认的cuda指向cuda12.3
+
+使用以下代码可以解决
+
+```bash
+!sudo rm -rf /usr/local/cuda
+!sudo ln -sf /usr/local/cuda-12.3 /usr/local/cuda
+```
+
+cuda就指向cuda12.3
+
 #### 安装cuDNN
 
 **安装cuDNN7.6.5**
 
-各种版本的cuDNN下载链接：[cuDNN Archive | NVIDIA Developer](https://developer.nvidia.com/rdp/cudnn-archive)
+各种版本的cuDNN下载链接：[cuDNN Archive | NVIDIA Developer](https://developer.nvidia.com/cudnn-archive)
 
 cuDNN与cuda安装不同，无法使用网页链接下载安装包或者可执行文件
 
@@ -899,6 +927,32 @@ sudo apt-get install libc6-dev -y
 > ```
 
 目前系统的GPU为 Tesla P100  满足的架构为`compute_60`
+
+**安装cuDNN8.9.5**
+
+```
+# 各种库文件冲突
+# !cp /kaggle/input/cudnn8.9.5/pytorch/default/1/cudnn-linux-x86_64-8.9.5.30_cuda12-archive.tar.xz /kaggle/working/cudnn-linux-x86_64-8.9.5.30_cuda12-archive.tar.xz
+# !rm -rf cudnn-linux-x86_64-8.9.5.30_cuda12-archive
+# !tar -xvf cudnn-linux-x86_64-8.9.5.30_cuda12-archive.tar.xz
+!sudo cp cudnn-linux-x86_64-8.9.5.30_cuda12-archive/include/cudnn*.h /usr/local/cuda/include
+!sudo cp cudnn-linux-x86_64-8.9.5.30_cuda12-archive/lib/libcudnn* /usr/local/cuda/lib64
+!sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
+```
+
+使用这种方法安装使得系统中的库冲突。
+
+还是使用deb安装吧
+
+**安装cuDNN9**
+
+安装cuDNN 要与cuda的版本匹配
+
+cuDNN9下载页面：[cuDNN Archive | NVIDIA Developer](https://developer.nvidia.com/cudnn-archive)
+
+应该要装与cuda12.4匹配的cuDNN，但是使用这个下载连接直接下载了cuDNN9.4
+
+网上的资料认为可以匹配cuda12.4 不知是否能行
 
 ### 安装ffmpeg
 
@@ -2107,7 +2161,7 @@ cmake \
     ..
 ```
 
-
+虽然这样配置，但是仍然是NO
 
 19.启用深度学习相关
 
@@ -2197,7 +2251,11 @@ cmake \
 
 
 
+24.VTK
 
+cmake中配置了WITHVTK = OFF
+
+25.运行一次opencv后再运行一次，之前的配置就没有了？
 
 
 
@@ -3219,3 +3277,15 @@ Opencv的依赖软件安装全了这个错误就解决了
 参考网站：
 
 [opencv编译问题处理集_no package 'libdc1394-2' found-CSDN博客](https://blog.csdn.net/weixin_34910922/article/details/118095033)
+
+9.\后有空格
+
+```bash
+Cell In[8], line 28
+    libdc1394-22-dev \
+    ^
+IndentationError: unexpected indent
+```
+
+## 走过的坑
+
