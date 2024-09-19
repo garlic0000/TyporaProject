@@ -36,6 +36,8 @@ kaggle 服务器的系统为Ubuntu
 
 共同编辑该notebook不会同步改变内容，但是编辑标题会共同改变，且notebook的链接是相同的
 
-## 关于Kaggle notebook
 
-一个账号只能创建5个notebook
+
+
+
+kaggle每次刷新和清除输出之后，符号链接什么的会重置。所以如果session还连接着必须要链接符号链接。

@@ -235,6 +235,8 @@ segment_for_test(opt)
 
 子文件夹数：flow count =  357
 
+总共有357段视频
+
 对每个子文件夹进行处理（比如`disgust1_1`称为一个子文件夹）
 
 > ```bash
@@ -249,6 +251,8 @@ segment_for_test(opt)
 flow count =  11052
 
 这个不知道是什么数字
+
+进行裁剪的图片有11409张，11409-11052=357，总共有357段视频
 
 全是以下错误
 
@@ -551,7 +555,7 @@ padding_right = 10
 
 当需要打印的字符变少时，进度条是一张一张更新，但是打印字符与进度条的更新不同步
 
-在进行特征提取时，有几个文件夹的图片的特征没法提取，可能需要另外处理
+在进行特征提取时，有几个文件夹的图片的特征没法提取，可能需要另外处理，总共有24个
 
 ```bash
 /kaggle/working/data/cas(me)^2/cropped_apex/s27/happy3_1/landmarks.csv does not exist
@@ -586,6 +590,363 @@ padding_right = 10
 
 裁剪部分，左边往左填充80后再裁剪，右边不需要填充，甚至可能还需要去掉部分，再进行裁剪
 
+右侧进行20的裁剪，进行如下修改
+
+```python
+padding_left = 80
+# padding_right = 10
+cutting_right = 20
+clip_left = face_left - padding_left
+clip_right = face_right - cutting_right
+```
+
+部分图片没法进行人脸记录和关键点记录，让其输出具体的数据，看看到底是人脸无法记录还是关键点无法检测
+
+命令问题得从标注文件相关的代码进行修改
+
+关于测试集，源项目中的测试集似乎和训练集一样，都是命名相同的.npz文件
+
+但是源代码中，测试集保存为npy文件
+
+**测试人脸记录和关键点检测**
+
+现在有一个想法，就是把出问题的图片所在的目录下的所有图片都不进行裁剪，直接放入已裁剪的文件夹中，直接进行人脸检测和关键点记录，不知是否可行。
+
+可能对每个出问题的图片所在的文件夹分别处理
+
+裁剪的尺寸分别不一样，因为最初的图片都能检测出人脸，裁剪后检测不出人脸，但是关键点还是能检测出来。
+
+设置右侧裁剪40
+
+```python
+padding_left = 80
+# padding_right = 10
+cutting_right = 40
+clip_left = face_left - padding_left
+clip_right = face_right - cutting_right
+```
+
+但是进行这样的处理之后
+
+没有检测出人脸的文件夹有24个，与之前的相同，可能头的上部和下部也需要进行处理
+
+```bash
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_7/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_6/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_7/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/anger1_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_4/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy3_2/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_6/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_8/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_2/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy2_3/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_5/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy2_2/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_5/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy2_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy3_3/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy3_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_9/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/anger1_3/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_4/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s37/happy1_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s37/happy3_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s24/happy4_4/landmarks.csv does not exist
+```
+
+首先应该不处理，记下有多少图片在裁剪后人脸无法检测，然后在进行调整
+
+```python
+def solve_img_size(subitem, typeitem):
+    """
+    处理不同图片的尺寸
+    padding_top 向上填充 -
+    padding_bottom 向下填充 +
+    padding_left 向左填充 -
+    padding_right 向右填充 +
+    """
+    # 首先应测试 不进行任何填充 图片有多少能检测成功
+    padding_top, paddding_bottom, padding_left, padding_right = 0, 0, 0, 0
+    # 左-80 右-40的情况下
+    # s27 21张图片有问题
+    # s37  2张图片有问题
+    # s24  1张图片有问题
+    # if subitem == "s":
+    #     if typeitem == "happy":
+    #         right_cutting = 0
+    #         return right_cutting
+    # else:
+    #     return 40
+    return padding_top, paddding_bottom, padding_left, padding_right
+```
+
+不进行处理时，再次进行关键点检测时会出现负数。人脸检测也没法成功检测
+
+而且在特征提取部分会报错
+
+> ```bash
+> Traceback (most recent call last):
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_all.py", line 37, in <module>
+>     feature(opt)
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_feature.py", line 90, in feature
+>     ior_feature_list = calculate_roi_freature_list(
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/tools.py", line 354, in calculate_roi_freature_list
+>     ior_flows = get_rois(
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/tools.py", line 240, in get_rois
+>     return np.stack(roi_list, axis=0)
+>   File "/opt/conda/lib/python3.10/site-packages/numpy/core/shape_base.py", line 449, in stack
+>     raise ValueError('all input arrays must have the same shape')
+> ValueError: all input arrays must have the same shape
+> ```
+
+首先进行左移80，即
+
+```python
+def solve_img_size(subitem, typeitem):
+    """
+    处理不同图片的尺寸
+    padding_top 向上填充 -
+    padding_bottom 向下填充 +
+    padding_left 向左填充 -
+    padding_right 向右填充 +
+    """
+    # 首先应测试 不进行任何填充 图片有多少能检测成功
+    padding_top, padding_bottom, padding_left, padding_right = 0, 0, 0, 0
+    padding_left = 80
+    # 左-80 右-40的情况下
+    # s27 21张图片有问题
+    # s37  2张图片有问题
+    # s24  1张图片有问题
+    # if subitem == "s":
+    #     if typeitem == "happy":
+    #         right_cutting = 0
+    #         return right_cutting
+    # else:
+    #     return 40
+    return padding_top, padding_bottom, padding_left, padding_right
+```
+
+没法检测人脸的有以下文件夹
+
+```
+/kaggle/working/data/cas(me)^2/cropped_apex/s37/happy1_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s37/happy3_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy3_3/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_6/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_5/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy3_2/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/anger1_3/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_8/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy2_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_6/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_9/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_7/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_4/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/disgust2_5/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy2_3/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy3_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_2/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy2_2/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_4/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/happy1_7/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s27/anger1_1/landmarks.csv does not exist
+/kaggle/working/data/cas(me)^2/cropped_apex/s24/happy4_4/landmarks.csv does not exist
+```
+
+可能是脸的上部裁剪过多，所以检测不到脸
+
+> ```
+> # 左-80 右-40的情况下
+> # s27 21张图片有问题
+> # s37  2张图片有问题
+> # s24  1张图片有问题
+> ```
+
+> ```
+> # 左-80 的情况下
+> # s27 21张图片有问题
+> # s37  2张图片有问题
+> # s24  1张图片有问题
+> ```
+
+对于`s24/happy4_4/img_00009.jpg`而言，脸部完全在图片内，发际线在图片上边缘，下巴的界限有点难辨认
+
+对`s24/happy4_4`，进行上部填充10，下部填充10，其余保持不变
+
+只进行裁剪、人脸检测和关键点检测，不知道会不会对光流提取产生影响
+
+修改代码如下
+
+```python
+def solve_img_size(subitem, typeitem):
+    """
+    处理不同图片的尺寸
+    padding_top 向上填充 -
+    padding_bottom 向下填充 +
+    padding_left 向左填充 -
+    padding_right 向右填充 +
+    """
+    # 首先应测试 不进行任何填充 图片有多少能检测成功
+    padding_top, padding_bottom, padding_left, padding_right = 0, 0, 0, 0
+    padding_left = 80
+    # s24/happy4_4/img_00009.jpg 脸部裁剪后 无法检测人脸
+    if subitem == "s24" and typeitem == "happy4_4":
+        padding_top = 10
+        padding_bottom = 10
+    return padding_top, padding_bottom, padding_left, padding_right
+```
+
+```bash
+# apex_sampling(opt)
+print("================ crop ================")
+crop(opt)
+print("================ record ================")
+record_face_and_landmarks(opt)
+# print("================ optical flow ================")
+# optflow(opt)
+# print("================ feature ================")
+# feature(opt)
+# print("================ feature segment ================")
+# segment_for_train(opt)
+# segment_for_test(opt)
+```
+
+还是不行，那么上下分别增加至20
+
+```python
+if subitem == "s24" and typeitem == "happy4_4":
+    padding_top = 20
+    padding_bottom = 20
+    print(padding_top, padding_bottom)
+```
+
+需要打印出相关信息，来看看是否修改成功
+
+之前的修改未成功，因为代码写错了，进行以下修改后，改为20的可以检测了，再进行测试增加10的，可能一开始就成功了
+
+```python
+if subitem.name == "s24" and typeitem.name == "happy4_4":
+    padding_top = 10
+    padding_bottom = 10
+    print("测试测试测试测试测试测试测试")
+    print(subitem.name, typeitem.name)
+    print(padding_top, padding_bottom)
+```
+
+上下增加10可以检测人脸，但是如果需要更细节的尺寸还需要进一步测试
+
+接下来解决两个`s37`的图片
+
+对`s37/happy1_1/img_00003.jpg`而言，有一部分额头没有出现，需要往上填补
+
+`s37/happy3_1/img_00001.jpg`而言，也是有一部分额头没有出现，同样需要填补
+
+修改代码如下
+
+```python
+elif subitem.name == "s37" and (typeitem.name == "happy1_1" or typeitem.name == "happy3_1"):
+    padding_top = 10
+```
+
+`happy1_1`完成了，但是`happy3_1`有新的图片的额头需要填补，修改代码如下
+
+```python
+elif subitem.name == "s37" and typeitem.name == "happy1_1":
+    padding_top = 10
+elif subitem.name == "s37" and typeitem.name == "happy3_1":
+    padding_top = 20
+```
+
+每次只修改一个文件夹太麻烦。
+
+同时解决`s27`的问题
+
+对于`s27/happy3_3/img_00001.jpg`而言
+
+额头和下巴都有点问题，因此，上下都加上10，虽然这里有21个文件夹的图片有问题，但是还是将整个s27都加上
+
+处理的代码如下
+
+```python
+elif subitem.name == "s27":
+    padding_top = 10
+    padding_bottom =10
+```
+
+但是
+
+```bash
+/kaggle/working/selectedpic/s27/disgust2_7
+    crop(opt)
+  File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_crop.py", line 132, in crop
+    cv2.imwrite(os.path.join(
+cv2.error: OpenCV(4.10.0) /io/opencv/modules/imgcodecs/src/loadsave.cpp:798: error: (-215:Assertion failed) !_img.empty() in function 'imwrite'
+```
+
+进行如下处理
+
+```python
+# s27 原图 头部太靠上
+    s27_dir_list = ['happy3_3', 'happy1_6', 'happy1_5', 'happy3_2', 'happy1_1', 'anger1_3', 'disgust2_1', 'disgust2_8', 'happy2_1', 'disgust2_6', 'disgust2_9', 'disgust2_7', 'disgust2_4', 'disgust2_5', 'happy2_3', 'happy3_1', 'happy1_2', 'happy2_2', 'happy1_4', 'happy1_7', 'anger1_1']
+    if subitem.name == "s24" and typeitem.name == "happy4_4":
+        padding_top = 10
+        padding_bottom = 10
+    elif subitem.name == "s37" and typeitem.name == "happy1_1":
+        padding_top = 10
+    elif subitem.name == "s37" and typeitem.name == "happy3_1":
+        padding_top = 20
+    elif subitem.name == "s27" and typeitem.name in s27_dir_list:
+        # 对于s27而言 未剪切的图片中, 头发部分几乎没出现
+        # 这里的处理还得
+        padding_top = -1 # 一个标志
+        padding_bottom = 10
+```
+
+```python
+# 对s27的处理
+    if padding_top == -1:
+    clip_top = 0
+```
+
+
+
+全部可以识别
+
+接下来将右侧进行裁剪
+
+
+
+
+
+
+
+
+
+
+
+
+
+关于命名，应该在最后进行特征分割的时候，在保存时进行重命名，需要标注文件xlsx和csv的转换
+
+关于测试集，我的想法是应该用视频进行测试，或者是图片帧。
+
+微表情对检测时间有要求吗
+
+如果用具体的视频进行测试，那么，首先应处理成图片帧，然后进行接下来的处理
+
+如果是训练成模型，那该怎么调用
+
+
+
+
+
+
+
 
 
 #### 直接使用数据集的关键帧作为已裁剪的图片
@@ -604,7 +965,9 @@ padding_right = 10
 
 或者像素有问题
 
+这个选项已经不需要进行测试
 
+#### 使用之前的人脸检测和关键点检测算法
 
 
 
@@ -612,11 +975,13 @@ padding_right = 10
 
 抽取关键帧，即表情帧
 
-但是这个数据集中自带关键帧文件夹
+但是这个数据集中自带关键帧文件夹，CAS(ME)^2数据集中的selectpic这个文件夹中为研究人员选择的表情帧，即出现宏表情和微表情时间片段中组成的帧。
 
 ### 裁剪
 
-数据集自带裁剪好的图片
+数据集自带裁剪好的图片，但是这个图片裁剪的让人脸检测软件和关键点检测软件检测不出，无法继续进行。
+
+只能使用未修剪的表情帧统一修剪，然后进行关键点标记，不知道之后是否会影响检测效果。
 
 ### 人脸检测和关键点标记
 
