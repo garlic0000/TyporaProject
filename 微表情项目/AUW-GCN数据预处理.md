@@ -917,21 +917,397 @@ cv2.error: OpenCV(4.10.0) /io/opencv/modules/imgcodecs/src/loadsave.cpp:798: err
 
 全部可以识别
 
-接下来将右侧进行裁剪
+接下来将右侧进行裁剪，右侧裁剪40，代码如下
 
+```
+# 右侧的要往左移 40 因此是 -40
+padding_right = -40
+```
 
+这样更改后，全部都可以识别，接下来测试下光流检测是否可以全部识别
 
+关于测试集，要不就复制训练集的？感觉没这么好处理，还要设置训练集的地址？
 
+那还是先测试吧
 
+```python
+print("================ crop ================")
+crop(opt)
+print("================ record ================")
+record_face_and_landmarks(opt)
+print("================ optical flow ================")
+optflow(opt)
+print("================ feature ================")
+feature(opt)
+print("================ feature segment ================")
+segment_for_train(opt)
+segment_for_test(opt)
+```
 
-
-
-
-
-
-
+测试完成，但是文件的分割有问题
 
 关于命名，应该在最后进行特征分割的时候，在保存时进行重命名，需要标注文件xlsx和csv的转换
+
+在做命名转换时，我想应该把特征文件下载下来，只测试特征分割部分的代码，节省时间
+
+接下来进行特征分割的测试，每个特征的长度为256
+
+首先将下载的data数据传到网站，然后只保留特征分割的代码  
+
+在上传代码时cas(me)^2中的字符不被识别，会报错，因此要改文件名
+
+进行如下处理
+
+```python
+# apex_sampling(opt)
+# print("================ crop ================")
+# crop(opt)
+# print("================ record ================")
+# record_face_and_landmarks(opt)
+# print("================ optical flow ================")
+# optflow(opt)
+# print("================ feature ================")
+# feature(opt)
+print("================ feature segment ================")
+segment_for_train(opt)
+segment_for_test(opt)
+```
+
+改文件名并上传文件
+
+```yaml
+# 在上传文件时 遇到了问题 只能改文件名
+simpled_root_path: "/kaggle/working/selectedpic"
+cropped_root_path: "/kaggle/working/data/casme_2/cropped_apex"
+optflow_root_path: "/kaggle/working/data/casme_2/optflow_apex"
+feature_root_path: "/kaggle/working/data/casme_2/feature_apex"
+feature_segment_root_path:  "/kaggle/working/data/casme_2/feature_segment_apex"
+# original_anno_csv_path: "/kaggle/working/ME-GCN-Project/feature_extraction/csv/cas(me)^2.csv"
+anno_csv_path: "/kaggle/working/ME-GCN-Project/feature_extraction/csv/cas(me)^2.csv"
+```
+
+进行输出测试
+
+```python
+feature_name = os.path.split(feature_path)[-1]
+video_name = os.path.splitext(feature_name)[0]
+print("feature_name")
+print(feature_name)
+print("video_name")
+print(video_name)
+# 这是
+tmp_df = anno_df[anno_df['video_name'] == video_name]
+print("tmp_tf")
+```
+
+> ```bash
+> feature_name
+> anger1_1.npy
+> video_name
+> anger1_1
+> tmp_tf
+> Empty DataFrame
+> Columns: [subject, video_name, start_frame, apex_frame, end_frame, type_idx, au]
+> Index: []
+> ```
+
+可能改名要从一开始改，将`anger1_1`、`anger1_2`之类的图片全部归类为`anger1`并改名为`0401`
+
+将`anger2_1``anger2_2`之类目录下的图片全部归类为`anger2`并改名为`0402`
+
+而且我觉得可能不知要抽取关键帧，而是要抽取全部的帧，因为在特征分段时根据帧的数量分段
+
+不过也有可能不是，所以先改名吧
+
+改名代码如下
+
+```python
+import os
+import glob
+import shutil
+from pathlib import Path
+
+import yaml
+import numpy as np
+import pandas as pd
+
+
+def changeFilesWithCSV(opt):
+    try:
+        simpled_root_path = opt["simpled_root_path"]
+        dataset = opt["dataset"]
+    except KeyError:
+        print(f"Dataset {dataset} does not need to be cropped")
+        print("terminate")
+        exit(1)
+    ch_file_name_dict = {"disgust1": "0101", "disgust2": "0102", "anger1": "0401", "anger2": "0402",
+                         "happy1": "0502", "happy2": "0503", "happy3": "0505", "happy4": "0507", "happy5": "0508"}
+    for sub_item in Path(simpled_root_path).iterdir():
+        # sub_item s14
+        if not sub_item.is_dir():
+            continue
+        # type_item anger1_1
+        for type_item in sub_item.iterdir():
+            if not type_item.is_dir():
+                continue
+            # 获取当前
+            for filename in ch_file_name_dict.keys():
+                # anger1 anger1_1
+                if filename in type_item.name:
+                    # sssss/s14/0401
+                    new_dir_path = os.path.join(
+                        simpled_root_path, sub_item.name, ch_file_name_dict[filename])
+                    if not os.path.exists(new_dir_path):
+                        os.makedirs(new_dir_path)
+                    # anger1_1  0401
+                    shutil.copytree(
+                        str(type_item), new_dir_path, dirs_exist_ok=True)
+                    # 删除 type_item 目录及其内容 递归删除
+                    shutil.rmtree(type_item)
+```
+
+进行如下处理
+
+```python
+from changeFilesWithAnnoCSV import changeFilesWithCSV
+# apex_sampling(opt)
+# print("================ crop ================")
+print("处理文件夹名称")
+changeFilesWithCSV(opt)
+# crop(opt)
+# print("================ record ================")
+# record_face_and_landmarks(opt)
+# print("================ optical flow ================")
+# optflow(opt)
+# print("================ feature ================")
+# feature(opt)
+# print("================ feature segment ================")
+# segment_for_train(opt)
+# segment_for_test(opt)
+```
+
+再查看效果
+
+好像可以了，但是是否要输出所有子目录来检测效果
+
+测试好之后，还需完整走一遍流程
+
+图片尺寸可能要重新修改
+
+这样修改文件名称后是否会有影响？感觉光流文件变少了
+
+当没有修改文件名称和尺寸时
+
+> ```
+> /kaggle/working/data/casme_2/cropped_apex/s27/0401/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/s27/0503/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/s27/0505/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/s27/0502/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/s27/0102/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/s37/0502/landmarks.csv does not exist
+> ```
+
+而且虽然输出，但是没有分段。
+
+因为没有超过256帧的，但是源项目中提供的超过了256帧。
+
+那使用所有图片再操作一次。
+
+修改如下
+
+```python
+simpled_root_path: "/kaggle/input/casme2/rawpic/rawpic"
+```
+
+所有图片有6G要是移到output不太行
+
+可修改的路径从裁剪路径开始就可以了
+
+但是修改文件名需要再input中操作，可能不太行
+
+可能需要后期更改了
+
+改名可以从裁剪时创建新的路径时修改
+
+但是特征分割时，还有些参数不清楚
+
+改名的代码 如下
+
+```python
+# 在这里修改
+# s15 15_0101
+# casme_015,casme_015_0401
+# subject video_name
+# 将type_item改为别的
+# s15 casme_015
+# /kaggle/input/casme2/rawpic/rawpic/s15/15_0101disgustingteeth
+s_name = "casme_0{}".format(sub_item.name[1:-1])
+v_name = "casme_0{}".format(type_item.name[0:7])
+new_dir_path = os.path.join(
+cropped_root_path, s_name, v_name)
+```
+
+之后可能会有图片的尺寸的问题
+
+只进行图片裁剪，要10个小时。所以每个功能分别进行。
+
+> ```bash
+> /kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0507
+> 36927.1s	436	
+> 36927.1s	437	
+> 36927.1s	438	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0507
+> 36927.1s	439	
+> 36927.1s	440	
+> 36927.1s	441	该路径的图片裁剪和关键点检测出错
+> 36927.1s	442	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0402/img_00001.jpg
+> 36927.1s	443	检测到的脸部区域:
+> 36927.1s	444	{}
+> 36927.1s	445	面部矩形框
+> 36927.1s	446	[(79, 50) (337, 308)]
+> 36927.1s	447	
+> 36927.1s	448	
+> 36927.1s	449	该路径的图片裁剪和关键点检测出错
+> 36927.1s	450	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0508/img_00001.jpg
+> 36927.1s	451	检测到的脸部区域:
+> 36927.1s	452	{}
+> 36927.1s	453	面部矩形框
+> 36927.1s	454	[(79, 50) (337, 308)]
+> 36927.1s	455	
+> 36927.1s	456	
+> 36927.1s	457	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0101
+> 36927.1s	458	
+> 36927.1s	459	
+> 36927.1s	460	该路径的图片裁剪和关键点检测出错
+> 36927.1s	461	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0505/img_00001.jpg
+> 36927.1s	462	检测到的脸部区域:
+> 36927.1s	463	{}
+> 36927.1s	464	面部矩形框
+> 36927.1s	465	[(79, 50) (337, 308)]
+> 36927.1s	466	
+> 36927.1s	467	
+> 36927.1s	468	该路径的图片裁剪和关键点检测出错
+> 36927.1s	469	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0502/img_00001.jpg
+> 36927.1s	470	检测到的脸部区域:
+> 36927.1s	471	{}
+> 36927.1s	472	面部矩形框
+> 36927.1s	473	[(79, 50) (337, 308)]
+> 36927.1s	474	
+> 36927.1s	475	
+> 36927.1s	476	/kaggle/working/data/casme_2/cropped_apex/casme_033/casme_033_0402
+> 36927.1s	477	
+> 36927.1s	478	
+> 36927.1s	479	/kaggle/working/data/casme_2/cropped_apex/casme_033/casme_033_0102
+> 37244.2s	480	/opt/conda/lib/python3.10/site-packages/traitlets/traitlets.py:2930: FutureWarning: --Exporter.preprocessors=["remove_papermill_header.RemovePapermillHeader"] for containers is deprecated in traitlets 5.0. You can pass `--Exporter.preprocessors item` ... multiple times to add items to a list.
+> 37244.2s	481	  warn(
+> 37244.2s	482	[NbConvertApp] WARNING | Config option `kernel_spec_manager_class` not recognized by `NbConvertApp`.
+> 37244.2s	483	[NbConvertApp] Converting notebook __notebook__.ipynb to notebook
+> ```
+
+运行完成，要找出人脸检测和关键点识别有问题的
+
+但是还是先走一遍流程，看看大概要花多长时间
+
+大概需要16小时，有一些图片的裁剪有问题，不知道加上这些图片之后时间是否会延长
+
+s27下的每一个子文件的图片裁剪有问题
+
+s37下有四个文件有问题
+
+由于每个视频中的帧都是和第一帧的截取位置相同，所以主要是第一帧
+
+s27未裁剪图片中面部额头部分有一些不全，所以上部不进行裁剪，使用原来的高度，下巴部分不知道是否需要填充，但是还是先填充10，进行测试后再调整
+
+s37中整个人脸都在图片中，所以需要往上移一些，按照之前的填充尺寸，选择在上部填充20，s37有6个文件夹，其中4个有问题
+
+s21有两个文件夹，一个有问题，s21和s27的问题一样，未裁剪图片中本身额头部分不全，因此上部不裁剪，使用原来的高度，但是下巴部分的空间很充分，不需要进行填充
+
+s31有7个文件夹，有一个文件夹有问题，但是未裁剪的图片中整张脸都显示出来了，所以需要在上部填充。先填充10进行测试
+
+> ```
+> /kaggle/working/data/casme_2/cropped_apex/casme_021/casme_021_0401/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0401/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0503/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0102/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0402/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0507/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0502/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0505/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0101/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0508/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0502/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0505/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0402/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0508/landmarks.csv does not exist
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0507/landmarks.csv does not exist
+> ```
+
+调整的代码如下
+
+> ```python
+> # s27 原图 头部太靠上
+>     if subitem.name == "s31" and typeitem.name == "31_0507climbingthewall":
+>         padding_top = 10
+>         padding_bottom = 10
+>     elif subitem.name == "s37":
+>         padding_top = 20
+>     # ch_file_name_dict = {"disgust1": "0101", "disgust2": "0102", "anger1": "0401", "anger2": "0402",
+>     #                          "happy1": "0502", "happy2": "0503", "happy3": "0505", "happy4": "0507", "happy5": "0508"}
+>     # "happy1": "0502", "happy2": "0503", "happy3": "0505"
+>     # "anger1": "0401"
+>     # "disgust2": "0102"
+>     elif subitem.name == "s27":
+>         # 对于s27而言 未剪切的图片中, 头发部分几乎没出现
+>         # 这里的处理还得
+>         padding_top = -1 # 一个标志
+>         padding_bottom = 10
+>     elif subitem.name == "s21":
+>         # 对于s27而言 未剪切的图片中, 头发部分几乎没出现
+>         # 这里的处理还得
+>         padding_top = -1 # 一个标志
+> ```
+
+可能要专门写一个检测图片是否能正常检测的程序
+
+```python
+def check_crop(img, img_path):
+    """
+    检测裁剪后的图片是否能再次检测人脸
+    用于调整裁剪尺寸用
+    """
+    face_detector = FaceDetector()
+    try:
+        face_left, face_top, face_right, face_bottom = \
+            face_detector.cal(img)
+    except Exception:
+        print("\n")
+        print("该路径的图片裁剪出错")
+        print(img_path)
+        face_detector.info(img)
+```
+
+```python
+# 用于调错
+# 检测裁剪后的图片是否能检测到人脸
+check_crop(img, img_path)
+# 不写 只测试
+# cv2.imwrite(os.path.join(
+#             new_dir_path,
+#             f"img_{str(index+1).zfill(5)}.jpg"), img)
+```
+
+但是这样会运行多久其实也不清楚，之前人脸检测和关键点检测有几乎8个小时
+
+进行检测用于调错也需要8小时，所以不进行，直接人脸检测和关键点检测
+
+将调错函数注释，裁剪图片的写入函数取消注释
+
+
+
+
+
+
+
+在特征分割中，只有训练集的数据，没有测试集的数据
 
 关于测试集，我的想法是应该用视频进行测试，或者是图片帧。
 
