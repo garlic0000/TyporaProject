@@ -1301,7 +1301,44 @@ check_crop(img, img_path)
 
 将调错函数注释，裁剪图片的写入函数取消注释
 
+运行有有一个检测出错
 
+> ```bash
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0508/img_00111.jpg
+> ```
+
+这个照片在裁剪后，下巴不全，所以应该，往下再填补一些，代码修改如下
+
+```python
+ elif subitem.name == "s27":
+        # 对于s27而言 未剪切的图片中, 头发部分几乎没出现
+        # 这里的处理还得
+        padding_top = -1 # 一个标志
+        padding_bottom = 20
+```
+
+要不只对这一个视频进行测试，就是casme_027_0508，这样就不会出那样的错。花费的时间也比较少。
+
+测试，代码如下
+
+在输出目录创建如下代码
+
+```bash
+# 用于调试
+!mkdir -p /kaggle/working/rawpic/s27
+!cp /kaggle/input/casme2/rawpic/rawpic/s27/27_0508funnydunkey /kaggle/working/rawpic/s27/
+```
+
+更改yaml文件中的地址
+
+```yaml
+  # 用于调试错误
+  # /kaggle/working/rawpic
+  simpled_root_path: "/kaggle/working/rawpic"
+  # simpled_root_path: "/kaggle/input/casme2/rawpic/rawpic"
+```
+
+如果测试的没问题，就可以进行晚上的所有数据集测试
 
 
 
