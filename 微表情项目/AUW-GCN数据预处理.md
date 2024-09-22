@@ -1342,6 +1342,39 @@ check_crop(img, img_path)
 
 进行这样的测试之后，顺便把光流测试和特征提取同时运行，确保没问题。
 
+先将训练集的数据全部复制到测试集
+
+复制的代码如下
+
+```python
+# 直接将训练集的数据 复制到测试集
+    out_dir = os.path.join(
+        feature_segment_root_path, "test")
+    train_dir = os.path.join(feature_segment_root_path, "train")
+    # 递归复制
+    shutil.copytree(train_dir, out_dir)
+    # for sub_item in Path(feature_root_path).iterdir():
+    #     if not sub_item.is_dir():
+    #         continue
+    #     out_dir = os.path.join(
+    #         feature_segment_root_path, "test", sub_item.name)
+    #     if not os.path.exists(out_dir):
+    #         os.makedirs(out_dir)
+    #     for type_item in sub_item.iterdir():
+    #         if not type_item.is_dir():
+    #             continue
+    #         video_name = type_item.name
+    #         # test文件夹为空的原因是没有feature.npy文件
+    #         # 测试集是直接复制？
+    #         # 我觉得测试集应该从整个数据集中选取
+    #         # 要保存为npz文件吗？
+    #
+    #         feature_path = os.path.join(str(type_item), "feature.npy")
+    #         shutil.copy(feature_path, os.path.join(out_dir, video_name+".npy"))
+
+    print("segment for test Finished!")
+```
+
 
 
 
