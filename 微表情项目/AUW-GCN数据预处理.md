@@ -1852,6 +1852,53 @@ padding_top, padding_bottom, padding_left, padding_right = 15, 15, 15, 15
 
 进行测试
 
+有好几个输出是这样的
+
+> ```
+> -1 339 133 396
+> -1 339 133 396
+> -1 339 133 396
+> -1 339 133 396
+> -1 339 133 396
+> -1 339 133 396
+> ```
+
+也就是说头顶的padding_top=0最好
+
+但是这个时候，s27和s21需要修改吗？
+
+先进行以下修改
+
+```
+padding_top, padding_bottom, padding_left, padding_right = 14, 14, 14, 14
+```
+
+进行这样的修改没有问题
+
+测试下这样修改后，能否检测出关键点
+
+这样还是没法检测出关键点，对两边进行扩充
+
+两边分别扩充20
+
+同时，检测s27和s21能否同样使用14
+
+代码修改如下
+
+```python
+padding_top = 14
+padding_bottom = 14
+padding_left, padding_right = 20, 20
+# if subitem.name == "s27" or subitem.name == "s21":
+#     padding_top = -1  # 一个标志
+```
+
+如果不报错，则s27和s21可使用相同的处理
+
+
+
+
+
 
 
 还有一种想法，使用现在的人脸裁剪算法，使用之前的san算法
