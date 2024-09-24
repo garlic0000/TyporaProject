@@ -1802,7 +1802,55 @@ padding_top, padding_bottom, padding_left, padding_right = 20, 20, 20, 20
 > /kaggle/working/data/casme_2/cropped_apex/casme_020/casme_020_0502/img_00001.jpg
 > ```
 
+031、040、027、024、033、032、035、025、026、020需要全部重新调整
 
+```python
+    if subitem.name == "s27" or subitem.name == "s21":
+        padding_top = -1  # 一个标志
+    # 031、040、027、024、033、032、035、025、026、020需要全部重新调整
+    elif subitem.name in ["s31", "s40", "s27", "s24", "s33", "s32", "s35", "s25", "s26", "s20"]:
+        padding_top, padding_bottom, padding_left, padding_right = 30, 30, 30, 30
+```
+
+在运行前发现有问题
+
+> ```bash
+> Traceback (most recent call last):
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_crop.py", line 199, in <module>
+>     crop(opt)
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_crop.py", line 181, in crop
+>     cv2.imwrite(os.path.join(
+> cv2.error: OpenCV(4.10.0) /io/opencv/modules/imgcodecs/src/loadsave.cpp:798: error: (-215:Assertion failed) !_img.empty() in function 'imwrite'
+> ```
+
+可能变少的原因是有一部分的人脸已经到顶了
+
+所以接下来只进行人脸裁剪的测试
+
+代码如下
+
+```python
+# 在进行填充时可能会超过图片尺寸
+# 进行测试
+if clip_top < 0 or clip_bottom < 0 or clip_left < 0 or clip_right < 0:
+	print(clip_top, clip_bottom, clip_left, clip_right)
+	continue
+```
+
+```python
+# # 031、040、027、024、033、032、035、025、026、020需要全部重新调整
+    # elif subitem.name in ["s31", "s40", "s27", "s24", "s33", "s32", "s35", "s25", "s26", "s20"]:
+    #     padding_top, padding_bottom, padding_left, padding_right = 30, 30, 30, 30
+```
+
+并且将padding改为15
+
+```python
+# 首先应测试 不进行任何填充 图片有多少能检测成功
+padding_top, padding_bottom, padding_left, padding_right = 15, 15, 15, 15
+```
+
+进行测试
 
 
 
