@@ -1385,6 +1385,332 @@ check_crop(img, img_path)
 
 如果运行成功，将CASME和CASMEⅡ数据集进行测试，增加论文的数据集。但是SAMM-LV的数据集不知道从哪获取。下次从老师那再催一催。
 
+结果可以运行成功，但是效果不好。
+
+微表情没有分数。
+
+我的想法是要对裁剪和关键点检测的算法进行更改。
+
+裁剪算法：
+
+https://github.com/deepinsight/insightface
+
+https://github.com/ipazc/mtcnn
+
+关键点检测算法：
+
+https://github.com/1adrianb/face-alignment
+
+https://github.com/yfeng95/PRNet
+
+**换原来的算法**
+
+使用retinaface进行人脸检测
+
+使用san进行人脸关键点检测
+
+代码如下：
+
+```python
+class LandmarkDetector:
+    def __init__(self, model_path):
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.det = SanLandmarkDetector(model_path, device)
+
+    def cal(self, img, offset=None, face_box=None):
+        if face_box is None:
+            face_box = (0, 0, img.shape[1], img.shape[0])
+        locs, _ = self.det.detect(img, face_box)
+        x_list = [
+            loc[0] if offset is None else loc[0] - offset[0] for loc in locs]
+        y_list = [
+            loc[1] if offset is None else loc[1] - offset[1] for loc in locs]
+        return x_list, y_list
+
+
+class FaceDetector:
+    def __init__(self, model_path):
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.det = RetinaFaceDetector(model_path, device)
+
+    def cal(self, img):
+        left, top, right, bottom = self.det.get_face_box(img)
+        return left, top, right, bottom
+```
+
+```python
+face_det_model_path = "/kaggle/input/checkpoint/pytorch/default/1/retinaface_Resnet50_Final.pth"
+face_detector = FaceDetector(face_det_model_path)
+......
+face_left, face_top, face_right, face_bottom = \
+                                face_detector.cal(img)
+clip_left = face_left
+clip_right = face_right
+clip_top = face_top
+clip_bottom = face_bottom
+```
+
+```python
+face_det_model_path = "/kaggle/input/checkpoint/pytorch/default/1/retinaface_Resnet50_Final.pth"
+face_detector = FaceDetector(face_det_model_path)
+landmark_model_path = '/kaggle/input/checkpoint/pytorch/default/1/san_checkpoint_49.pth.tar'
+landmark_detector = LandmarkDetector(landmark_model_path)
+......
+left, top, right, bottom = face_detector.cal(img)
+x_list, y_list = landmark_detector.cal(img, face_box=(left, top, right, bottom))
+```
+
+先进行人脸裁剪、人脸记录和关键点记录的代码测试
+
+因为在裁剪之后，可能存在人脸检测失败的情况。
+
+出现裁剪后人脸检测失败的情况如下：
+
+> ```
+> 				该路径的图片裁剪和关键点检测出错
+> 2785.2s	6878	/kaggle/working/data/casme_2/cropped_apex/casme_016/casme_016_0505/img_00001.jpg	
+> 2785.2s	6881	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6882	/kaggle/working/data/casme_2/cropped_apex/casme_016/casme_016_0502/img_00001.jpg
+> 2785.2s	6885	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6886	/kaggle/working/data/casme_2/cropped_apex/casme_016/casme_016_0401/img_00001.jpg
+> 2785.2s	6889	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6890	/kaggle/working/data/casme_2/cropped_apex/casme_016/casme_016_0402/img_00001.jpg
+> 2785.2s	6893	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6894	/kaggle/working/data/casme_2/cropped_apex/casme_016/casme_016_0507/img_00001.jpg
+> 2785.2s	6897	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6898	/kaggle/working/data/casme_2/cropped_apex/casme_016/casme_016_0101/img_00001.jpg
+> 2785.2s	6901	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6902	/kaggle/working/data/casme_2/cropped_apex/casme_016/casme_016_0102/img_00001.jpg	
+> 2785.2s	6905	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6906	/kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0503/img_00001.jpg
+> 2785.2s	6909	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6910	/kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0102/img_00001.jpg
+> 2785.2s	6913	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6914	/kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0401/img_00001.jpg	
+> 2785.2s	6917	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6918	/kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0101/img_00001.jpg
+> 2785.2s	6921	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6922	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0508/img_00001.jpg	
+> 2785.2s	6925	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6926	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0505/img_00001.jpg
+> 2785.2s	6929	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6930	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0502/img_00001.jpg	
+> 2785.2s	6933	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6934	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0401/img_00001.jpg
+> 2785.2s	6937	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6938	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0503/img_00001.jpg
+> 2785.2s	6941	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6942	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0402/img_00001.jpg
+> 2785.2s	6945	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6946	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0101/img_00001.jpg
+> 2785.2s	6949	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6950	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0507/img_00001.jpg
+> 2785.2s	6953	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6954	/kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0102/img_00001.jpg
+> 2785.2s	6957	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6958	/kaggle/working/data/casme_2/cropped_apex/casme_038/casme_038_0502/img_00001.jpg
+> 2785.2s	6961	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6962	/kaggle/working/data/casme_2/cropped_apex/casme_038/casme_038_0507/img_00001.jpg	
+> 2785.2s	6965	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6966	/kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0402/img_00001.jpg
+> 2785.2s	6969	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6970	/kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0401/img_00001.jpg
+> 2785.2s	6973	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6974	/kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0507/img_00001.jpg
+> 2785.2s	6977	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6978	/kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0101/img_00001.jpg
+> 2785.2s	6981	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6982	/kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0502/img_00001.jpg
+> 2785.2s	6985	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6986	/kaggle/working/data/casme_2/cropped_apex/casme_034/casme_034_0401/img_00001.jpg
+> 2785.2s	6989	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6990	/kaggle/working/data/casme_2/cropped_apex/casme_034/casme_034_0503/img_00001.jpg
+> 2785.2s	6993	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6994	/kaggle/working/data/casme_2/cropped_apex/casme_034/casme_034_0402/img_00001.jpg
+> 2785.2s	6997	该路径的图片裁剪和关键点检测出错
+> 2785.2s	6998	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0507/img_00001.jpg
+> 2785.2s	7001	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7002	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0101/img_00001.jpg
+> 2785.2s	7005	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7006	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0402/img_00001.jpg
+> 2785.2s	7009	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7010	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0508/img_00001.jpg
+> 2785.2s	7013	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7014	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0505/img_00001.jpg
+> 2785.2s	7017	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7018	/kaggle/working/data/casme_2/cropped_apex/casme_037/casme_037_0502/img_00001.jpg
+> 2785.2s	7021	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7022	/kaggle/working/data/casme_2/cropped_apex/casme_029/casme_029_0502/img_00001.jpg
+> 2785.2s	7025	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7026	/kaggle/working/data/casme_2/cropped_apex/casme_020/casme_020_0502/img_00001.jpg
+> 2785.2s	7029	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7030	/kaggle/working/data/casme_2/cropped_apex/casme_040/casme_040_0503/img_00001.jpg
+> 2785.2s	7033	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7034	/kaggle/working/data/casme_2/cropped_apex/casme_040/casme_040_0401/img_00001.jpg
+> 2785.2s	7037	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7038	/kaggle/working/data/casme_2/cropped_apex/casme_040/casme_040_0502/img_00001.jpg
+> 2785.2s	7041	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7042	/kaggle/working/data/casme_2/cropped_apex/casme_035/casme_035_0102/img_00001.jpg
+> 2785.2s	7045	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7046	/kaggle/working/data/casme_2/cropped_apex/casme_022/casme_022_0503/img_00001.jpg
+> 2785.2s	7049	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7050	/kaggle/working/data/casme_2/cropped_apex/casme_022/casme_022_0402/img_00001.jpg
+> 2785.2s	7053	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7054	/kaggle/working/data/casme_2/cropped_apex/casme_022/casme_022_0101/img_00001.jpg
+> 2785.2s	7057	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7058	/kaggle/working/data/casme_2/cropped_apex/casme_022/casme_022_0508/img_00001.jpg
+> 2785.2s	7061	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7062	/kaggle/working/data/casme_2/cropped_apex/casme_022/casme_022_0102/img_00001.jpg
+> 2785.2s	7065	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7066	/kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0102/img_00001.jpg
+> 2785.2s	7069	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7070	/kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0101/img_00001.jpg
+> 2785.2s	7073	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7074	/kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0508/img_00001.jpg
+> 2785.2s	7077	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7078	/kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0502/img_00001.jpg
+> 2785.2s	7081	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7082	/kaggle/working/data/casme_2/cropped_apex/casme_023/casme_023_0503/img_00001.jpg
+> 2785.2s	7085	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7086	/kaggle/working/data/casme_2/cropped_apex/casme_023/casme_023_0102/img_00001.jpg
+> 2785.2s	7089	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7090	/kaggle/working/data/casme_2/cropped_apex/casme_023/casme_023_0402/img_00001.jpg
+> 2785.2s	7093	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7094	/kaggle/working/data/casme_2/cropped_apex/casme_023/casme_023_0507/img_00001.jpg
+> 2785.2s	7097	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7098	/kaggle/working/data/casme_2/cropped_apex/casme_036/casme_036_0401/img_00001.jpg
+> 2785.2s	7101	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7102	/kaggle/working/data/casme_2/cropped_apex/casme_036/casme_036_0505/img_00001.jpg
+> 2785.2s	7105	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7106	/kaggle/working/data/casme_2/cropped_apex/casme_021/casme_021_0401/img_00001.jpg
+> 2785.2s	7109	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7110	/kaggle/working/data/casme_2/cropped_apex/casme_021/casme_021_0101/img_00001.jpg
+> 2785.2s	7113	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7114	/kaggle/working/data/casme_2/cropped_apex/casme_033/casme_033_0102/img_00001.jpg
+> 2785.2s	7117	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7118	/kaggle/working/data/casme_2/cropped_apex/casme_033/casme_033_0402/img_00001.jpg
+> 2785.2s	7121	该路径的图片裁剪和关键点检测出错
+> 2785.2s	7122	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0402/img_00001.jpg
+> 2792.3s	7126	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7127	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0101/img_00001.jpg
+> 2792.3s	7130	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7131	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0505/img_00001.jpg
+> 2792.3s	7134	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7135	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0102/img_00001.jpg
+> 2792.3s	7138	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7139	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0507/img_00001.jpg
+> 2792.3s	7142	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7143	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0502/img_00001.jpg
+> 2792.3s	7146	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7147	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0508/img_00001.jpg
+> 2792.3s	7150	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7151	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0503/img_00001.jpg
+> 2792.3s	7154	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7155	/kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0401/img_00001.jpg
+> 2792.3s	7158	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7159	/kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0401/img_00001.jpg
+> 2792.3s	7162	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7163	/kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0502/img_00001.jpg
+> 2792.3s	7166	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7167	/kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0102/img_00001.jpg
+> 2792.3s	7170	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7171	/kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0503/img_00001.jpg
+> 2792.3s	7174	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7175	/kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0101/img_00001.jpg
+> 2792.3s	7178	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7179	/kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0505/img_00001.jpg
+> 2792.3s	7182	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7183	/kaggle/working/data/casme_2/cropped_apex/casme_030/casme_030_0507/img_00001.jpg
+> 2792.3s	7186	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7187	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0505/img_00001.jpg
+> 2792.3s	7190	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7191	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0101/img_00001.jpg
+> 2792.3s	7194	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7195	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0402/img_00001.jpg
+> 2792.3s	7198	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7199	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0508/img_00001.jpg
+> 2792.3s	7202	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7203	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0401/img_00001.jpg
+> 2792.3s	7206	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7207	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0502/img_00001.jpg
+> 2792.3s	7210	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7211	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0102/img_00001.jpg
+> 2792.3s	7214	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7215	/kaggle/working/data/casme_2/cropped_apex/casme_015/casme_015_0503/img_00001.jpg
+> 2792.3s	7218	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7219	/kaggle/working/data/casme_2/cropped_apex/casme_019/casme_019_0402/img_00001.jpg
+> 2792.3s	7222	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7223	/kaggle/working/data/casme_2/cropped_apex/casme_019/casme_019_0505/img_00001.jpg
+> 2792.3s	7226	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7227	/kaggle/working/data/casme_2/cropped_apex/casme_019/casme_019_0102/img_00001.jpg
+> 2792.3s	7230	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7231	/kaggle/working/data/casme_2/cropped_apex/casme_019/casme_023_0502/img_00001.jpg
+> 2792.3s	7234	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7235	/kaggle/working/data/casme_2/cropped_apex/casme_019/casme_019_0507/img_00001.jpg
+> 2792.3s	7238	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7239	/kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0101/img_00001.jpg
+> 2792.3s	7242	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7243	/kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0502/img_00001.jpg
+> 2792.3s	7246	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7247	/kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0507/img_00001.jpg
+> 2792.3s	7250	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7251	/kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0503/img_00001.jpg
+> 2792.3s	7254	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7255	/kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0505/img_00001.jpg
+> 2792.3s	7258	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7259	/kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0401/img_00001.jpg
+> 2792.3s	7262	该路径的图片裁剪和关键点检测出错
+> 2792.3s	7263	/kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0402/img_00001.jpg
+> ```
+
+每个文件夹进行裁剪之后都没法再次进行人脸检测，可能裁剪的非常贴近人脸。需要进行进一步的调整
+
+先把裁剪的文件夹下载下来
+
+裁剪的图片非常贴近人脸，但是再一次检测就无法检测出来，于是进行填充
+
+修改如下：
+
+```python
+padding_top, padding_bottom, padding_left, padding_right = \
+                                solve_img_size(sub_item, type_item)
+clip_top = face_top - padding_top
+clip_bottom = face_bottom + padding_bottom
+clip_left = face_left - padding_left
+clip_right = face_right + padding_right
+# 对s27 s21的处理
+if padding_top == -1:
+  clip_top = 0
+```
+
+```python
+def solve_img_size(subitem, typeitem):
+    """
+    处理不同图片的尺寸
+    padding_top 向上填充 -
+    padding_bottom 向下填充 +
+    padding_left 向左填充 -
+    padding_right 向右填充 +
+    """
+    # 首先应测试 不进行任何填充 图片有多少能检测成功
+    padding_top, padding_bottom, padding_left, padding_right = 10, 10, 10, 10
+    if subitem.name == "s27" or subitem.name == "s21":
+        padding_top = -1  # 一个标志
+    return padding_top, padding_bottom, padding_left, padding_right
+```
+
+进行测试
+
+
+
+还有一种想法，使用现在的人脸裁剪算法，使用之前的san算法
+
+
+
+
+
+
+
 
 
 在特征分割中，只有训练集的数据，没有测试集的数据
