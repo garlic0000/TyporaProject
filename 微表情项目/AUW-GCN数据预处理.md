@@ -1701,6 +1701,109 @@ def solve_img_size(subitem, typeitem):
 
 进行测试
 
+还是有问题，增加填充的面积
+
+```python
+padding_top, padding_bottom, padding_left, padding_right = 20, 20, 20, 20
+```
+
+进行这样的填充后，变少了
+
+> ```
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0101/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0503/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0402/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0507/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0401/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0505/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_031/casme_031_0502/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_040/casme_040_0502/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_040/casme_040_0503/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_040/casme_040_0401/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0503/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0507/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0102/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0101/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0402/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0401/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0508/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0502/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_027/casme_027_0505/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0101/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0502/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0402/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0401/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_024/casme_024_0507/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_033/casme_033_0402/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_033/casme_033_0102/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0507/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0101/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0401/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0502/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0402/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0102/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0505/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0508/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_032/casme_032_0503/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_035/casme_035_0102/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0102/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0508/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0502/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_025/casme_025_0101/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0401/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0102/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0101/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_026/casme_026_0503/img_00001.jpg
+> 该路径的图片裁剪和关键点检测出错
+> /kaggle/working/data/casme_2/cropped_apex/casme_020/casme_020_0502/img_00001.jpg
+> ```
+
+
+
 
 
 还有一种想法，使用现在的人脸裁剪算法，使用之前的san算法
