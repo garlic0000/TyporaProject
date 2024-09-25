@@ -1895,6 +1895,181 @@ padding_left, padding_right = 20, 20
 
 如果不报错，则s27和s21可使用相同的处理
 
+s27比较特殊，不能进行裁剪
+
+> ```
+> -8 349 170 444
+> -1 352 168 445
+> -9 351 177 454
+> -5 352 169 445
+> ```
+
+还是直接使用
+
+但是s21可以使用-14
+
+再将两边进行扩宽，代码修改如下
+
+```python
+padding_top = 14
+padding_bottom = 14
+padding_left, padding_right = 30, 30
+if subitem.name == "s27":
+	padding_top = -1  # 一个标志
+```
+
+两边还需要进一步的扩宽
+
+```python
+padding_top = 14
+padding_bottom = 14
+padding_left, padding_right = 40, 40
+if subitem.name == "s27":
+	padding_top = -1  # 一个标志
+```
+
+修改为50
+
+突然有一个想法，就是剪切之后没法再次检测人脸，那么该图片的长宽就是人脸的长宽。
+
+直接使用图片的长宽
+
+先做测试，查看人脸检测输出的格式
+
+使用已裁剪的图像进行检测，查看输出格式
+
+相关代码如下
+
+```python
+simpled_root_path: "/kaggle/input/casme2/cropped/cropped"
+```
+
+```python
+    def cal(self, img):
+        # 用于测试 输出检测格式
+        self.info(img)
+        left, top, right, bottom = self.det.get_face_box(img)
+        return left, top, right, bottom
+
+    def info(self, img):
+        """
+        用于调错
+        """
+        print(self.det.get_face_box(img))
+```
+
+能检测人脸，但是会有负数，比如
+
+> ```
+> (0, -3, 196, 237)
+> ```
+
+应该后两位不会是负数，所以如果前两位出现负数，则将负数改为0
+
+修改代码如下：
+
+```python
+    def cal(self, img):
+        # 用于测试 输出检测格式
+        # self.info(img)
+        left, top, right, bottom = self.det.get_face_box(img)
+        # 检测到已裁剪的人脸图像时
+        if left < 0:
+            left = 0
+        if top < 0:
+            top = 0
+        return left, top, right, bottom
+```
+
+可以正常检测人脸了，连检测裁剪之后的人脸也可以
+
+但是在检测关键点出现了问题
+
+> ```bash
+> Traceback (most recent call last):
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_record_face_and_landmark.py", line 99, in record_face_and_landmarks
+>     x_list, y_list = landmark_detector.cal(img, face_box=(left, top, right, bottom))
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/tools.py", line 51, in cal
+>     locs, _ = self.det.detect(img, face_box)
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/SAN/san_api.py", line 111, in detect
+>     return locations.round().astype(np.int), scores
+>   File "/opt/conda/lib/python3.10/site-packages/numpy/__init__.py", line 324, in __getattr__
+>     raise AttributeError(__former_attrs__[attr])
+> AttributeError: module 'numpy' has no attribute 'int'.
+> `np.int` was a deprecated alias for the builtin `int`. To avoid this error in existing code, use `int` by itself. Doing this will not modify any behavior and is safe. When replacing `np.int`, you may wish to use e.g. `np.int64` or `np.int32` to specify the precision. If you wish to review your current use, check the release note link for additional information.
+> The aliases was originally deprecated in NumPy 1.20; for more details and guidance see the original release note at:
+>     https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations. Did you mean: 'inf'?
+> 
+> During handling of the above exception, another exception occurred:
+> ```
+
+在`File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/SAN/san_api.py", line 111`
+
+进行以下修改
+
+```python
+# return locations.round().astype(np.int), scores
+# 随便选的精度
+return locations.round().astype(np.int64), scores
+```
+
+修改后可以进行关键点检测
+
+但是在检测关键点时，图片的数量变成
+
+> ```bash
+> img count =  3323
+> ```
+
+在检测光流时出现以下问题
+
+> ```bash
+> terminate called after throwing an instance of 'cv::Exception'
+>   what():  OpenCV(4.10.0) /kaggle/working/opencv_build/opencv_contrib/modules/cudaoptflow/src/tvl1flow.cpp:188: error: (-215:Assertion failed) I0.size() == I1.size() in function 'calcImpl'
+> ```
+
+这个说明图片尺寸不一致
+
+但是在图片裁剪时，已经一致了，为什么会出现这样的问题？
+
+重新再运行一遍试试
+
+可能是文件夹命名问题
+
+先暂时进行这样的修改进行测试
+
+```python
+# s_name = "casme_0{}".format(sub_item.name[1:])
+# v_name = "casme_0{}".format(type_item.name[0:7])
+# new_dir_path = os.path.join(
+#     cropped_root_path, s_name, v_name)
+new_dir_path = os.path.join(
+	cropped_root_path, sub_item.name, type_item.name)
+```
+
+进行这样的修改后文件的个数也正常了
+
+> ```bash
+> img count =  11156
+> ```
+
+也可以正常提取光流特征
+
+将之前的测试条件修改回来，同时将修改图片尺寸的代码删除，然后进行正式的测试
+
+```python
+simpled_root_path: "/kaggle/input/casme2/rawpic/rawpic"
+```
+
+```python
+s_name = "casme_0{}".format(sub_item.name[1:])
+v_name = "casme_0{}".format(type_item.name[0:7])
+new_dir_path = os.path.join(
+	cropped_root_path, s_name, v_name)
+# new_dir_path = os.path.join(
+#     cropped_root_path, sub_item.name, type_item.name)
+```
+
 
 
 
