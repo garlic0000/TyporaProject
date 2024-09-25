@@ -2152,6 +2152,58 @@ print(locs)
 simpled_root_path: "/kaggle/working/rawpic"
 ```
 
+在训练时总是结束不了
+
+改为以下代码，让输出简洁一些
+
+```python
+# 用于测试
+print(len(locs))
+```
+
+在测试时输出
+
+> ```bash
+> feature_name
+> casme_023_0503.npy
+> video_name
+> casme_023_0503
+> tmp_tf
+> Empty DataFrame
+> Columns: [subject, video_name, start_frame, apex_frame, end_frame, type_idx, au]
+> Index: []
+> frame_count
+> 2813
+> segment for train Finished!
+> segment for test Finished!
+> ```
+
+在csv文件中没有相关信息，看看数据集中是否有相关信息
+
+源数据集中的xlsx中也没有相关信息，难道是这段视频中没有表情发生？
+
+可能要写一个xlsx和csv转换的代码
+
+casme_023_0503应该是没问题，用一个没有出现在输出中的
+
+这样做有点大海捞针，还是重新测试
+
+在出问题的代码处进行异常捕获
+
+```python
+                        try:
+                            # 这段可能有问题
+                            ior_feature_list = calculate_roi_freature_list(
+                                flow_x_y, landmarks, radius=5)
+                            ior_feature_list_sequence.append(
+                                np.stack(ior_feature_list, axis=0))
+                            tq.update()
+                        except Exception:
+                            ior_feature_list_sequence = []
+                            print(f"{sub_item.name}  {type_item.name}")
+                            break
+```
+
 
 
 
