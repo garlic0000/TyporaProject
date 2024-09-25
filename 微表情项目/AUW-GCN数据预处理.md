@@ -1,10 +1,12 @@
 # AUW-GCN数据预处理
 
-## CAS(ME)^2
+## 实验过程
 
-### 实验
+### CAS(ME)^2
 
-#### 直接使用数据集裁剪好的图片
+进行数据预处理时，不知道使用数据集中的哪一部分，不知道是视频还是图片
+
+#### 使用已裁剪的关键帧图片
 
 1.`config.yaml`中的设置如下
 
@@ -148,7 +150,7 @@ img = torch.ByteTensor(torch.UntypedStorage.from_buffer(pic.tobytes()))
 
 暂时先不改回来
 
-#### 使用数据集选取的关键帧进行统一裁剪
+#### 使用未裁剪的关键帧图片
 
 1.`config.yaml`中的设置如下
 
@@ -273,6 +275,8 @@ flow count =  11052
 **特征分割**
 
 由于提取特征的部分没有成功过，特征分割的部分找不到输入文件的路径。
+
+#### 使用retina-face和dlib算法
 
 **修改人脸检测和关键点检测函数**
 
@@ -913,8 +917,6 @@ cv2.error: OpenCV(4.10.0) /io/opencv/modules/imgcodecs/src/loadsave.cpp:798: err
     clip_top = 0
 ```
 
-
-
 全部可以识别
 
 接下来将右侧进行裁剪，右侧裁剪40，代码如下
@@ -1110,6 +1112,8 @@ changeFilesWithCSV(opt)
 而且虽然输出，但是没有分段。
 
 因为没有超过256帧的，但是源项目中提供的超过了256帧。
+
+#### 使用全部未裁剪图片
 
 那使用所有图片再操作一次。
 
@@ -1402,6 +1406,8 @@ https://github.com/ipazc/mtcnn
 https://github.com/1adrianb/face-alignment
 
 https://github.com/yfeng95/PRNet
+
+#### 使用retinaface和san算法
 
 **换原来的算法**
 
@@ -2070,7 +2076,81 @@ new_dir_path = os.path.join(
 #     cropped_root_path, sub_item.name, type_item.name)
 ```
 
+运行成功了，而且比之前的速度快，存储占用的少，所以可能在预处理这一块没法优化了
 
+因为输出的内存少，所以应该可以一次性运行完
+
+在提取特征时需要了问题，出现了下面的错误
+
+> ```bash
+> Traceback (most recent call last):
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_feature.py", line 139, in <module>
+>     feature(opt)
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_feature.py", line 90, in feature
+>     ior_feature_list = calculate_roi_freature_list(
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/tools.py", line 296, in calculate_roi_freature_list
+>     global_optflow_vector = cal_global_optflow_vector(flow, landmarks)
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/tools.py", line 266, in cal_global_optflow_vector
+>     flow_nose_roi = get_main_direction_flow(
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/tools.py", line 207, in get_main_direction_flow
+>     for i, ang in enumerate(angs):
+> TypeError: 'NoneType' object is not iterable
+> ```
+
+提取光流和关键点检测都没报错，但是不排除是否是关键点检测的为空，或者有负数
+
+首先修改下图片中人脸检测的代码
+
+有时人脸检测框会出现上和左为负数，但是又没有可能会出现右和下大于图片的宽度和高度，但是在裁剪时没有报错，那应该是没有出现，但是还是进行修改。
+
+即出现上或左为负数，或者，右大于宽度或下大于高度，则使用源图像的尺寸，不进行裁剪，或者不进行新的人脸记录
+
+代码如下
+
+```python
+# 检测到已裁剪的人脸图像 检测的参数不合法时
+        if left < 0 or top < 0 or right > img.shape[1] or bottom > img.shape[0]:
+            left, top, right, bottom = 0, 0, img.shape[1], img.shape[0]
+```
+
+使用出问题的进行测试
+
+在进行特征分段时，有一个文件夹没有特征，可能是在提取特征时出现了问题，只创建了文件夹没有提取特征，所以在进行特征分段时为空文件夹
+
+> ```bash
+> feature_name
+> casme_023_0503.npy
+> video_name
+> casme_023_0503
+> tmp_tf
+> Empty DataFrame
+> Columns: [subject, video_name, start_frame, apex_frame, end_frame, type_idx, au]
+> Index: []
+> frame_count
+> 2813
+> ```
+
+原始文件夹有2814张图片但是这里只有2813张，可能有一张关键点检测失败导致特征提取失败
+
+把这个有问题的文件夹移到/kaggle/working/下，只对其进行测试，主要测关键点的输出格式
+
+代码如下
+
+```bash
+# 用于调试
+!mkdir -p /kaggle/working/rawpic/s23
+!cp -r /kaggle/input/casme2/rawpic/rawpic/s23/23_0503unnyfarting /kaggle/working/rawpic/s23/
+```
+
+```python
+locs, _ = self.det.detect(img, face_box)
+# 用于测试
+print(locs)
+```
+
+```python
+simpled_root_path: "/kaggle/working/rawpic"
+```
 
 
 
@@ -2098,56 +2178,6 @@ new_dir_path = os.path.join(
 
 
 
-
-
-
-
-
-
-#### 直接使用数据集的关键帧作为已裁剪的图片
-
-这个可能不可行，因为没有人脸和关键点的位置文件
-
-现在的问题时解决检测人脸和人脸关键点的问题。
-
-但是可以进行人脸检测和关键点检测的代码有无问题。
-
-使用新的算法还是有问题
-
-打算使用未裁剪的图片进行人脸检测和关键点检测
-
-可能是`CROPPED_SIZE`设置的有问题，或者填充算法设置的有问题，导致检测不到人脸
-
-或者像素有问题
-
-这个选项已经不需要进行测试
-
-#### 使用之前的人脸检测和关键点检测算法
-
-
-
-### 取样
-
-抽取关键帧，即表情帧
-
-但是这个数据集中自带关键帧文件夹，CAS(ME)^2数据集中的selectpic这个文件夹中为研究人员选择的表情帧，即出现宏表情和微表情时间片段中组成的帧。
-
-### 裁剪
-
-数据集自带裁剪好的图片，但是这个图片裁剪的让人脸检测软件和关键点检测软件检测不出，无法继续进行。
-
-只能使用未修剪的表情帧统一修剪，然后进行关键点标记，不知道之后是否会影响检测效果。
-
-### 人脸检测和关键点标记
-
-源代码中使用以下两个模型进行人脸检测和人脸关键点检测
-
-> ```python
-> face_det_model_path = "/kaggle/input/checkpoint/pytorch/default/1/retinaface_Resnet50_Final.pth"
-> face_detector = FaceDetector(face_det_model_path)
-> landmark_model_path = '/kaggle/input/checkpoint/pytorch/default/1/san_checkpoint_49.pth.tar'
-> landmark_detector = LandmarkDetector(landmark_model_path)
-> ```
 
 
 
