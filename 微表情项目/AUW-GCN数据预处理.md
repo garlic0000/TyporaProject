@@ -2188,7 +2188,23 @@ casme_023_0503应该是没问题，用一个没有出现在输出中的
 
 这样做有点大海捞针，还是重新测试
 
-在出问题的代码处进行异常捕获
+在出问题的代码处进行异常抛出和异常捕获
+
+```python
+flow_nose_roi = np.stack(flow_nose_roi_list).reshape(-1, 2)
+    if flow_nose_roi.size == 0:
+        raise ValueError("flow_nose_roi is empty, check ROI boundaries or flow data.")
+    flow_nose_roi = get_main_direction_flow(
+        flow_nose_roi,
+        direction_region=[
+            (1 * math.pi / 4, 3 * math.pi / 4),
+            (3 * math.pi / 4, 5 * math.pi / 4),
+            (5 * math.pi / 4, 7 * math.pi / 4),
+            (7 * math.pi / 4, 8 * math.pi / 4, 0, 1 * math.pi / 4),
+        ])
+    if flow_nose_roi is None:
+        raise ValueError("get_main_direction_flow returned None, check flow calculation.")
+```
 
 ```python
                         try:
@@ -2203,6 +2219,8 @@ casme_023_0503应该是没问题，用一个没有出现在输出中的
                             print(f"{sub_item.name}  {type_item.name}")
                             break
 ```
+
+将之前用于调试的代码改回
 
 
 
