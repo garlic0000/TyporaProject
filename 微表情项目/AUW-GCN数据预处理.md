@@ -2222,7 +2222,35 @@ flow_nose_roi = np.stack(flow_nose_roi_list).reshape(-1, 2)
 
 将之前用于调试的代码改回
 
+进行测试后，在特征提取阶段，出现了这样的问题
 
+> ```python
+> casme_030  casme_030_0505
+> Traceback (most recent call last):
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_feature.py", line 140, in <module>
+>     feature(opt)
+>   File "/kaggle/working/ME-GCN-Project/feature_extraction/cas(me)^2/new_feature.py", line 78, in feature
+>     flow_x = cv2.imread(flow_x_path_list[i],
+> IndexError: list index out of range
+> ```
+
+猜测在casme_030_0505中的图片出现了问题，搜索`casme_030_0505.npy`没有出现，因此这个文件夹中的图片处理可能出现了问题
+
+使用这个文件夹进行测试
+
+为防止出现之前023_0503的问题，去csv文件中检测了以下030_0505是存在的
+
+测试代码如下
+
+```python
+# 用于调试
+!mkdir -p /kaggle/working/rawpic/s30
+!cp -r /kaggle/input/casme2/rawpic/rawpic/s30/30_0505funnyinnovations /kaggle/working/rawpic/s30/
+```
+
+```python
+simpled_root_path: "/kaggle/working/rawpic"
+```
 
 
 
