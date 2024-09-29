@@ -2252,17 +2252,539 @@ flow_nose_roi = np.stack(flow_nose_roi_list).reshape(-1, 2)
 simpled_root_path: "/kaggle/working/rawpic"
 ```
 
+出现了错误
+
+> ```bash
+> ior_feature_list 有问题
+> casme_030  casme_030_0505
+> flow_nose_roi is empty, check ROI boundaries or flow data.
+> ```
+
+进行边界和流数据的检测
+
+代码如下
+
+```python
+        if flow_nose_roi.size == 0:
+            print("flow_nose_roi is empty after extraction, checking boundaries...")
+            print(
+                f"ROI boundaries: top={nose_roi_top}, bottom={nose_roi_bottom}, left={nose_roi_left}, right={nose_roi_right}")
+        else:
+            print(f"Flow values: min={np.min(flow_nose_roi, axis=0)}, max={np.max(flow_nose_roi, axis=0)}")
+
+```
+
+出现这样的问题
+
+> ```bash
+> Flow values: min=[-0.09999999 -0.05294117], max=[-0.09215686 -0.0490196 ]
+> flow_nose_roi is empty after extraction, checking boundaries...
+> ROI boundaries: top=139, bottom=153, left=34, right=27
+> ```
+
+光流的值是正常的，光流值通常应该是较小的浮点数，通常在 -1 到 1 之间波动
+
+但是边界出现了矛盾，left比right大
+
+进行如下修改
+
+```python
+# 确保左右边界正确
+        if nose_roi_left > nose_roi_right:
+            nose_roi_left, nose_roi_right = nose_roi_right, nose_roi_left  # 交换左右边界
+
+        # 确保上下边界正确
+        if nose_roi_top > nose_roi_bottom:
+            nose_roi_top, nose_roi_bottom = nose_roi_bottom, nose_roi_top  # 交换上下边界
+
+        # 使用np.max和np.min确保ROI边界不越界
+        nose_roi_left = np.max([nose_roi_left, 0])
+        nose_roi_top = np.max([nose_roi_top, 0])
+        nose_roi_right = np.min([nose_roi_right, flows.shape[1] - 1])
+        nose_roi_bottom = np.min([nose_roi_bottom, flows.shape[0] - 1])
+        # 根据修正后的边界提取ROI
+        flow_nose_roi = flows[nose_roi_top:nose_roi_bottom + 1, nose_roi_left:nose_roi_right + 1]
+        flow_nose_roi = flow_nose_roi.reshape(-1, 2)
+```
+
+这样写就成功运行了
+
+接下来进行整体的运行
+
+将测试代码改回来
+
+```yaml
+simpled_root_path: "/kaggle/input/casme2/rawpic/rawpic"
+```
+
+```bash
+# 用于调试
+# !mkdir -p /kaggle/working/rawpic/s30
+# !cp -r /kaggle/input/casme2/rawpic/rawpic/s30/30_0505funnyinnovations /kaggle/working/rawpic/s30/
+```
+
+数据预处理运行成功了
+
+接着进行模型训练
+
+先上传处理好的数据集
+
+修改提取的特征的地址
+
+```python
+segment_feat_root: "/kaggle/input/output/data/casme_2/feature_segment_apex"
+```
+
+先下载下预处理的数据特征
+
+#### 预处理误差过大
+
+使用相同的算法但是结果差很多，问题应该出在预处理的过程上
+
+将预处理的到的分割的特征进行对比
+
+> s19 源 45 现 54
+>
+> s23 源 56 现 47
+
+在进行评估阶段 
+
+使用源项目的特征进行训练的output.csv文件很多，但是自定义提取的非常少。
+
+可能最终的效果就是基于这个进行计算的。
+
+使用源项目的损失率也比较高，甚至有一些比自己提取的还高，但是最终的F1分数却更高
+
+到底是什么原因呢？
+
+先输出各自npz的数据，比较数组中数据的不同点
+
+可能是光流的原因？
+
+或者这个是？
+
+> ```python
+> class AUwGCN(torch.nn.Module):
+>     def __init__(self, opt):
+>         super().__init__()
+>         # 这个是？
+>         mat_path = os.path.join('/kaggle/working/ME-GCN-Project',
+>             'assets',
+>             '{}.npy'.format(opt['dataset'])
+>         )
+> ```
+
+代码中
+
+> ```python
+> opt_step = 1  # int(get_micro_expression_average_len(anno_csv_path) // 2)
+> ```
+
+但是真正去运行这个函数，结果不为1
+
+结果为
+
+> ```python
+> mirco_len = get_micro_expression_average_len("D:/PycharmProjects/ME-GCN-Project/info_csv/cas(me)_new.csv")
+> marco_len = get_macro_expression_average_len("D:/PycharmProjects/ME-GCN-Project/info_csv/cas(me)_new.csv")
+> print(mirco_len)
+> print(marco_len)
+> 
+> 13.578947368421053
+> 40.10546875
+> ```
+
+要不改掉这个函数，然后再测试一遍，测试的这一遍不使用
+
+#### 修改参数
+
+对光流的修改
+
+```python
+opt_step = int(get_micro_expression_average_len(anno_csv_path) // 2)
+cmd = (f'denseflow "{str(type_item)}" -b={opt_step} -a=tvl1 '
+                               f'-s={opt_step} -if -o="{new_sub_dir_path}"')
+```
+
+对参数的修改
+
+```yaml
+dataset: "cas(me)^2"
+
+cas(me)^2:
+  dataset: "cas(me)^2"
+
+  # 数据集统计和训练设置
+  RATIO_SCALE: 1
+  SEGMENT_LENTH: 256  # 视频片段的长度 每个片段被分割成256帧
+  RECEPTIVE_FILED: 15  # 感受野 模型一次输入的感受范围
+  save_model: True  # 是否保存训练好的模型
+  save_intervals: 1   # 模型保存的间隔 每个epoch都保存
+
+  # 微表情和宏表情统计信息
+  micro_average_len: 13  # 微表情平均持续长度 帧数
+  macro_average_len: 40
+  micro_max: 17  # 微表情最大持续长度 帧数
+  micro_min: 9
+  macro_max: 118
+  macro_min: 17  # 实际上计算的是4 第二小是17 但是为了与微表情有一个区别 使用17
+  # 为什么epoch_begin 的开始为15
+  epoch_begin: 15
+  nms_top_K_micro: 5  # 微表情候选数量 每个类别筛选前5个
+  nms_top_K_macro: 5
+
+  micro_left_min_dis: 4   # 微表情左侧最小帧数
+  micro_left_max_dis: 10  # 微表情左侧最大帧数
+  micro_right_min_dis: 4
+  micro_right_max_dis: 12
+
+  macro_left_min_dis: 4
+  macro_left_max_dis: 63
+  macro_right_min_dis: 5  # 宏表情右侧最小帧数
+  macro_right_max_dis: 94  # 宏表情右侧最大帧数
+
+  # 路径设置
+  project_root: "/kaggle/working/ME-GCN-Project"
+  feature_root: ~
+  # 源项目特征
+  # segment_feat_root: "/kaggle/working/ME-GCN-Project/features/cas(me)^2/feature_segment"
+  # 提取完特征不直接开始训练
+  # segment_feat_root: "/kaggle/input/output/data/casme_2/feature_segment_apex"
+  # 提取完特征 直接开始训练
+  segment_feat_root: "/kaggle/working/data/casme_2/feature_segment_apex"
+  model_save_root: ~
+  output_dir_name: ~
+  anno_csv: "/kaggle/working/ME-GCN-Project/info_csv/cas(me)_new.csv"
+
+  # 训练配置
+  num_workers: 2  # dataloader 使用的工作线程数
+  device: 'cuda:0'
+
+  # ABFCM模型的超参数
+  abfcm_training_lr: 0.01  # 学习率
+  abfcm_weight_decay: 0.1  # 权重衰减 防止过拟合
+  abfcm_lr_scheduler: 0.96  # 学习率调度参数 每个epoch后学习率*0.96
+  abfcm_apex_gamma: 1  # 控制apex损失函数相关的参数
+  abfcm_apex_alpha: 0.90
+  abfcm_action_gamma: 1  # 控制动作相关的损失函数参数
+  abfcm_action_alpha: 0.80
+  abfcm_start_end_gama: 1  # 控制开始帧和结束帧的损失函数参数
+  abfcm_start_end_alpha: 0.90
+  abfcm_label_smooth: 0.16  # 标签平滑系数 防止过拟合
+  # 为什么是第47个
+  abfcm_best_epoch: 47  # 最佳模型在第47个epoch得到 为什么？
+
+  # 分类阈值
+  micro_apex_score_threshold: 0.5  # 微表情分类阈值 只有超过0.5才认为该微表情是有效的
+  macro_apex_score_threshold: 0.5
+
+  # 训练epoch和批次大小
+  epochs: 100
+  batch_size: 128
+
+  verbose: False
+
+
+  macro_ration: 0.5 # 平衡微表情和宏表情的比率 为什么设置成0.5
+  micro_normal_range: 1  # 微表情的标准范围 在后处理时的正常偏移量 为什么设置成1
+  macro_normal_range: 3
+
+  # 视频数据
+  subject_list: [
+      "casme_016","casme_015","casme_019","casme_020","casme_021",
+      "casme_022","casme_023","casme_024","casme_025","casme_026",
+      "casme_027","casme_029","casme_030","casme_031","casme_032",
+      "casme_033","casme_034","casme_035","casme_036","casme_037",
+      "casme_038","casme_040"
+  ]
+```
+
+#### 使用已裁剪的图片位置进行裁剪
+
+> ```bash
+> FileNotFoundError: [Errno 2] No such file or directory: '/kaggle/working/data/casme_2/faceboxcsv/s24/casme_024_0507/facebox_average.csv'
+> ```
+
+cropped中没有这个表情的文件夹，可能需要通过其他文件的尺寸进行裁剪，或者使用人脸检测算法进行裁剪
+
+将0101、0401、0402、0502中的平均值写入到0507中
+
+> ```
+> /kaggle/working/data/casme_2/faceboxcsv/s15/casme_015_0508/facebox_average.csv不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s24/casme_024_0507/facebox_average.csv不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s19/casme_023_0502/facebox_average.csv不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0503/facebox_average.csv不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0507/facebox_average.csv不存在
+> ```
+
+023怎么到s19下了
+
+> ```
+> /kaggle/working/data/casme_2/faceboxcsv/s19/casme_023_0502/facebox_average.csv不存在
+> ```
+
+先进行检测 
+
+再进行人脸映射后 检测如下的目录是否缺失 以及有一个原数据集的问题
+
+```python
+def check():
+    """
+    可能是croped 中的路径不存在 但 rawpic的路径存在
+    """
+    if os.path.exists("/kaggle/working/data/casme_2/faceboxcsv/s15/casme_015_0508/"):
+        print("/kaggle/working/data/casme_2/faceboxcsv/s15/casme_015_0508/ 存在")
+    else:
+        print("/kaggle/working/data/casme_2/faceboxcsv/s15/casme_015_0508/ 不存在")
+
+    if os.path.exists("/kaggle/working/data/casme_2/faceboxcsv/s24/casme_024_0507/"):
+        print("/kaggle/working/data/casme_2/faceboxcsv/s24/casme_024_0507/ 存在")
+    else:
+        print("/kaggle/working/data/casme_2/faceboxcsv/s24/casme_024_0507/ 不存在")
+    # 原数据集的问题
+    if os.path.exists("/kaggle/working/data/casme_2/faceboxcsv/s19/casme_023_0502/"):
+        print("/kaggle/working/data/casme_2/faceboxcsv/s19/casme_023_0502/ 存在")
+    else:
+        print("/kaggle/working/data/casme_2/faceboxcsv/s19/casme_023_0502/ 不存在")
+    # 正常的数据是否存在
+    if os.path.exists("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0502/"):
+        print("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0502/ 存在")
+    else:
+        print("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0502/ 不存在")
+
+    if os.path.exists("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0503/"):
+        print("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0503/ 存在")
+    else:
+        print("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0503/ 不存在")
+
+    if os.path.exists("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0507/"):
+        print("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0507/ 存在")
+    else:
+        print("/kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0507/ 不存在")
+```
+
+输出为
+
+> ```
+> /kaggle/working/data/casme_2/faceboxcsv/s15/casme_015_0508/ 不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s24/casme_024_0507/ 不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s19/casme_023_0502/ 不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0502/ 存在
+> /kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0503/ 不存在
+> /kaggle/working/data/casme_2/faceboxcsv/s23/casme_023_0507/ 不存在
+> ```
+
+也就是说`s23/casme_023_0502/`这个目录中可能有csv文件
+
+在rawpic的s19中不对023_0502进行操作
+
+对其余四个文件夹进行csv的复制操作 同时检查s23/casme_023_0502下是否有csv文件的存在
+
+s23/casme_023_0502下有csv文件的存在
+
+对`/kaggle/input/casme2/rawpic/rawpic/s19/23_0502funnyerrors`的处理
+
+```python
+s_name = "casme_0{}".format(sub_item.name[1:])
+v_name = "casme_0{}".format(type_item.name[0:7])
+# /kaggle/input/casme2/rawpic/rawpic/s19/23_0502funnyerrors
+# 特殊的
+if sub_item.name == "s19" and type_item.name == "23_0502funnyerrors":
+	s_name = "casme_023"
+	v_name = "casme_023_0502"
+new_dir_path = os.path.join(
+	cropped_root_path, s_name, v_name)
+```
+
+```python
+if sub_item.name == "s19" and type_item.name == "23_0502funnyerrors":
+	facebox_average_path = os.path.join(facebox_csv_root_path, "s23", v_name, "facebox_average.csv")
+```
+
+裁剪没有问题，接下来看关键点检测有没有问题
+
+裁剪之后就不做人脸检测
+
+直接使用图片的高宽作为人脸的边界
+
+```python
+# 对已经进行人脸裁剪的图像进行检测
+# left, top, right, bottom = face_detector.cal(img)
+# 已经裁剪过所以不再进行人脸检测
+left, top, right, bottom = 0, 0, img.shape[1], img.shape[0]
+```
+
+在关键点的检测过程中没有出错
+
+可能要做人脸矫正
+
+有一部分图片剪切的人脸不全在框中，可能有问题
+
+可能要对文件结构进行调整
+
+数据预处理的整个过程所用的时间为7小时15分左右，这样可以把模型的训练放在其中一起进行。省去下载和上传的时间。
+
+利用输出对预处理的代码进行每行注释 调试
+
+处理标注文件的函数放在同一个py文件中
+
+#### 特征可视化对比分析
+
+#### 标签文件修改
+
+原数据集的标签和实际使用的标签不同
+
+对`CAS(ME)^2code_final(Updated).xlsx`中的标注信息进行规范化 用于更好的读取
+
+```python
+def get_subject_dict(anno_file):
+    """
+    输出：
+    生成的字典：
+    {'1': '15', '2': '16', '3': '19', '4': '20', '5': '21',
+        '6': '22', '7': '23', '8': '24', '9': '25', '10': '26',
+        '11': '27', '12': '29', '13': '30', '14': '31', '15': '32',
+        '16': '33', '17': '34', '18': '35', '19': '36', '20': '37',
+        '21': '38', '22': '40'}
+
+    """
+    # 读取Excel文件
+    xl = pd.ExcelFile(anno_file)
+    # 获取第二个工作表
+    nameing_rule_1 = xl.parse(xl.sheet_names[1], header=None, dtype=str)
+    # 获取第一列的数据并转换为列表
+    first_column_list = nameing_rule_1.iloc[:, 0].tolist()  # 获取第一列并转换为列表
+    # 获取第三列的数据并转换为列表
+    third_column_list = nameing_rule_1.iloc[:, 2].tolist()  # 获取第三列并转换为列表
+    subject_dict = {}
+    # 检查长度是否一致
+    if len(first_column_list) == len(third_column_list):
+        # 创建字典，第三列作为键，第一列作为值
+        subject_dict = {third_column_list[i]: first_column_list[i] for i in range(len(third_column_list))}
+        # 打印字典
+        # print("生成的字典：")
+        # print(subject_dict)
+    else:
+        print("第一列和第三列的长度不一致！")
+
+    return subject_dict
+```
+
+```python
+def get_type_dict(anno_file):
+    """
+    输出
+    生成的字典：
+    {'disgust1': '0101', 'disgust2': '0102', 'anger1': '0401',
+        'anger2': '0402', 'happy1': '0502', 'happy2': '0503',
+        'happy3': '0505', 'happy4': '0507', 'happy5': '0508'}
+
+
+    """
+    # 读取Excel文件
+    xl = pd.ExcelFile(anno_file)
+    # 获取第三个工作表
+    nameing_rule_2 = xl.parse(xl.sheet_names[2], header=None, dtype=str)
+    # 获取第一列的数据并转换为列表
+    first_column_list = nameing_rule_2.iloc[:, 0].tolist()  # 获取第一列并转换为列表
+    # 获取第二列的数据并转换为列表
+    second_column_list = nameing_rule_2.iloc[:, 1].tolist()  # 获取第三列并转换为列表
+    type_dict = {}
+    # 检查长度是否一致
+    if len(first_column_list) == len(second_column_list):
+        # 创建字典，第二列作为键，第一列作为值
+        type_dict = {second_column_list[i]: first_column_list[i] for i in range(len(second_column_list))}
+        # 打印字典
+        # print("生成的字典：")
+        # print(type_dict)
+    else:
+        print("第一列和第二列的长度不一致！")
+
+    return type_dict
+```
+
+```python
+def parse_code_final(anno_file):
+    """
+    首先需要处理
+    规范csv文件的格式
+    pip install openpyxl
+    """
+    # 读取subject字典
+    subject_dict = get_subject_dict(anno_file)
+    # 读取type字典
+    type_dict = get_type_dict(anno_file)
+    # 读取Excel文件
+    xl = pd.ExcelFile(anno_file)
+    # 获取第一个工作表
+    # 第一行为数据 不是列名
+    CASFEcode_final = xl.parse(xl.sheet_names[0], header=None, dtype=str)
+    # 获取第一列的数据
+    first_column_list = CASFEcode_final.iloc[:, 0].tolist()
+    # 遍历第一列，并根据 subject_dict 进行修改
+    for idx, item in enumerate(first_column_list):
+        # 判断 item 是否在 subject_dict 中
+        if item in subject_dict.keys():
+            # 替换当前项为格式化的字符串
+            first_column_list[idx] = f"casme_0{subject_dict[item]}"
+        else:
+            print(item)
+    # 将修改后的第一列写回到 DataFrame 中
+    CASFEcode_final.iloc[:, 0] = first_column_list
+
+    # 获取第二列的数据
+    second_column_list = CASFEcode_final.iloc[:, 1].tolist()
+    # 遍历第二列，并根据 type_dict 进行修改
+    for idx, item in enumerate(second_column_list):
+        # 判断 item.split('_')[0] 是否在 type_dict 中
+        item = item.split('_')[0]
+        if item in type_dict.keys():
+            # 替换当前项为格式化的字符串
+            second_column_list[idx] = f"{first_column_list[idx]}_{type_dict[item]}"
+        else:
+            print(item)
+    # 将修改后的第二列写回到 DataFrame 中
+    CASFEcode_final.iloc[:, 1] = second_column_list
+
+    # 获取第六列的数据
+    sixth_column_list = CASFEcode_final.iloc[:, 5].tolist()
+    # 将第六列写到第七列 DataFrame 中
+    CASFEcode_final.iloc[:, 6] = sixth_column_list
+
+    # 获取第八列的数据
+    eighth_column_list = CASFEcode_final.iloc[:, 7].tolist()
+    # 遍历第八列，进行替换修改
+    for idx, item in enumerate(eighth_column_list):
+        if item == "macro-expression":
+            eighth_column_list[idx] = "1"
+        elif item == "micro-expression":
+            eighth_column_list[idx] = "2"
+        else:
+            print(item)
+    # 将修改后的第八列写回到第六列 DataFrame 中
+    CASFEcode_final.iloc[:, 5] = eighth_column_list
+    # 删除第八列（第7索引）和第九列（第8索引）
+    CASFEcode_final.drop(CASFEcode_final.columns[[7, 8]], axis=1, inplace=True)
+    # 将列名写入 csv
+    col_name_list = ["subject", "video_name", "start_frame", "apex_frame", "end_frame", "type_idx", "au"]
+    CASFEcode_final.columns = col_name_list
+
+    if os.path.exists("./cas(me)^2_original.csv"):
+        os.remove("./cas(me)^2_original.csv")
+    CASFEcode_final.to_csv('./cas(me)^2_original.csv', index=False)
+```
+
+
+
+
+
+
+
+
+
 
 
 还有一种想法，使用现在的人脸裁剪算法，使用之前的san算法
-
-
-
-
-
-
-
-
 
 在特征分割中，只有训练集的数据，没有测试集的数据
 
@@ -2273,7 +2795,6 @@ simpled_root_path: "/kaggle/working/rawpic"
 如果用具体的视频进行测试，那么，首先应处理成图片帧，然后进行接下来的处理
 
 如果是训练成模型，那该怎么调用
-
 
 
 
