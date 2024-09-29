@@ -2774,7 +2774,18 @@ def parse_code_final(anno_file):
     CASFEcode_final.to_csv('./cas(me)^2_original.csv', index=False)
 ```
 
+使用改csv文件进行特征提取 由于au有空值 可能会报错
 
+由于重新生成csv文件 相应的特征矩阵需要修改
+
+```python
+mat_dir = '/kaggle/working/ME-GCN-Project'
+# # 本地测试路径
+# mat_dir = 'D:/PycharmProjects/ME-GCN-Project'
+mat_path = os.path.join(mat_dir, 'assets', '{}_original.npy'.format(opt['dataset']) )
+```
+
+宏表情的比率是否要设置成0.8 （从0.84改成0.8）？
 
 
 
