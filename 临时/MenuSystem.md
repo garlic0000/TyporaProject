@@ -6,11 +6,11 @@
 
 2.使用MySQL进行数据存储（MySQL版本为8.0.37），使用Python库PySQL进行数据库的连接和操作。
 
-![MySQL](D:\TyporaProject\图片\MenuSystem\MySQL.png)
+![MySQL](../图片/MenuSystem/MySQL.png)
 
 3.使用Python库PyQt5和Qt Designer进行界面设计，其中Qt Designer用于拖拽控件进行界面设计，PyQt5主要进行界面控件背后逻辑设计，比如界面跳转、表格中数据显示、按钮点击后的自定义操作等。
 
-![Qt](D:\TyporaProject\图片\MenuSystem\Qt.png)
+![Qt](../图片/MenuSystem/Qt.png)
 
 ## 二、系统总体分析
 
@@ -22,7 +22,7 @@
 
 ​	系统逻辑图如下：
 
-![菜单系统](D:\TyporaProject\图片\MenuSystem\菜单系统.png)
+![菜单系统](../图片/MenuSystem/菜单系统.png)
 
 ### 3.数据表设计
 
@@ -127,7 +127,7 @@ Connector.connection = pymysql.connect(host='localhost',
 
 ​	对主界面而言，点击顾客会跳转至顾客登录界面，点击管理员会跳转至管理员登录界面，点击退出则会关闭当前界面。菜单系统管理界面的原理与主界面的类似，点击顾客管理会跳转至顾客管理界面，点击菜单管理则会跳转至菜单管理界面，点击取消会关闭当前界面。
 
-| <img src="D:\TyporaProject\图片\MenuSystem\主界面.png" alt="主界面" style="zoom: 67%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\菜单系统管理.png" alt="菜单系统管理" style="zoom: 67%;" /> |
+| <img src="../图片/MenuSystem/主界面.png" alt="主界面" style="zoom:67%;" /> | <img src="../图片/MenuSystem/菜单系统管理.png" alt="菜单系统管理" style="zoom:67%;" /> |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
 ​	界面跳转功能的实现使用的是`PyQt5.QtCore`中的`pyqtSignal`函数。
@@ -146,7 +146,7 @@ switch_adminWindow = pyqtSignal()
 
 ​	对顾客登录而言，主要是将填入的用户名、密码和手机号码在数据库中进行查询，若存在则登录成功。对顾客注册而言，首先要去数据库中查询手机号码是否重复，若不重复，则进行数据的插入操作。对管理员登录而言，其原理与顾客登录类似，即将填入的用户名和密码在数据库中进行查询，若存在，则登录成功。
 
-| <img src="D:\TyporaProject\图片\MenuSystem\顾客登录.png" alt="顾客登录" style="zoom: 50%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\顾客注册.png" alt="顾客注册" style="zoom: 50%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\管理员登录.png" alt="管理员登录" style="zoom: 50%;" /> |
+| <img src="../图片/MenuSystem/顾客登录.png" alt="顾客登录" style="zoom: 50%;" /> | <img src="../图片/MenuSystem/顾客注册.png" alt="顾客注册" style="zoom: 50%;" /> | <img src="../图片/MenuSystem/管理员登录.png" alt="管理员登录" style="zoom: 50%;" /> |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
 ​	顾客登录时，数据库操作的主要代码如下：（管理员登录时的操作类似）
@@ -180,9 +180,9 @@ cursor.execute(sql, (username, password, phonenumber))
 
 ​	菜单界面、菜单管理界面和顾客信息管理界面三者都是将数据表中的信息展现在界面的表格中，同时都提供查询功能。菜单界面和菜单管理界面中的查询都是对food_info进行操作，顾客管理界面则是对`custom_info`进行查询。
 
-![菜单](D:\TyporaProject\图片\MenuSystem\菜单.png)
+![菜单](../图片/MenuSystem/菜单.png)
 
-| <img src="D:\TyporaProject\图片\MenuSystem\菜单管理.png" alt="菜单管理" style="zoom:67%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\顾客信息管理.png" alt="顾客信息管理" style="zoom:67%;" /> |
+| <img src="../图片/MenuSystem/菜单管理.png" alt="菜单管理" style="zoom:67%;" /> | <img src="../图片/MenuSystem/顾客信息管理.png" alt="顾客信息管理" style="zoom:67%;" /> |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
 ​	对顾客使用的菜单界面而言，从food_info表中查询所有的数据，按菜品类型分别显示在界面的表格区域中。左下角是查询菜品按键，点击可弹出查询菜品对话框。菜单管理界面的中间使用表格显示food_info表中的内容，下方前四个按钮分别对应管理员对food_info表中数据的增删改查，并分别跳转至对应的界面。顾客管理界面的原理与菜单管理界面的类似，中间使用表格显示custom_info表中的内容，下方前两个按钮分别对应管理员对custom_info表中对数据的查询和删除。
@@ -218,9 +218,9 @@ for i in range(len(result)):
 
 ​	顾客查询菜品、管理员查询菜品和管理员查询顾客信息都是对数据库进行查询操作。其中顾客查询菜品和管理员查询菜品的对话框布局相同，且查询条件种类相同，操作的表都是`food_info`，因此主要介绍顾客查询菜品的原理。
 
-![顾客查询菜品](D:\TyporaProject\图片\MenuSystem\顾客查询菜品.png)
+![顾客查询菜品](../图片/MenuSystem/顾客查询菜品.png)
 
-| <img src="D:\TyporaProject\图片\MenuSystem\查询菜品.png" alt="查询菜品" style="zoom:67%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\顾客信息查询.png" alt="顾客信息查询" style="zoom:67%;" /> |
+| <img src="../图片/MenuSystem/查询菜品.png" alt="查询菜品" style="zoom:67%;" /> | <img src="../图片/MenuSystem/顾客信息查询.png" alt="顾客信息查询" style="zoom:67%;" /> |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
 ​	对顾客查询菜品的对话框而言，顾客可自行选择查询的条件，因此最终的查询语句中的条件部分是几段字符串拼凑而成。使用是列表结构来存放条件部分，当用户选择一个查询条件时，分别将对应的查询语句块、查询值添加到对应的列表中。在拼凑查询语句时，使用AND或者OR对查询语句列表进行连接并转为一个字符串。执行查询语句时，使用元组存放查询值，但元组是常值类型，不可修改，因在添加查询值时，使用列表存放，最后进行查询时，将列表转为元组。
@@ -264,10 +264,10 @@ result = cursor.fetchall()
 
 ​	增加菜品界面是一个固定模板，比如菜品种类的选择和招牌菜的设置。修改菜品和删除菜品都需要选中某一行才能继续操作。对于修改菜品和删除菜品而言，需要将选中的一行的信息记录下并显示在弹出的对话框中，因此使用全局变量记录，使得多个界面都可读取该变量，这样可以使得多个界面进行通信。
 
-| <img src="D:\TyporaProject\图片\MenuSystem\增加菜品.png" alt="增加菜品" style="zoom:67%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\删除菜品.png" alt="删除菜品" style="zoom:67%;" /> |
+| <img src="../图片/MenuSystem/增加菜品.png" alt="增加菜品" style="zoom:67%;" /> | <img src="../图片/MenuSystem/删除菜品.png" alt="删除菜品" style="zoom:67%;" /> |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
-| <img src="D:\TyporaProject\图片\MenuSystem\修改菜品.png" alt="修改菜品" style="zoom:67%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\删除顾客信息.png" alt="删除顾客信息" style="zoom:67%;" /> |
+| <img src="../图片/MenuSystem/修改菜品.png" alt="修改菜品" style="zoom:67%;" /> | <img src="../图片/MenuSystem/删除顾客信息.png" alt="删除顾客信息" style="zoom:67%;" /> |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
 ​	管理员增加菜品的数据库操作的主要代码如下：
@@ -305,7 +305,7 @@ self.conn.get_connection()# 数据更新 页面重新显示
 
 ​	Navicat中的`food_type`表和`custom_info`表如下：
 
-| <img src="D:\TyporaProject\图片\MenuSystem\food_type.png" alt="food_type" style="zoom: 80%;" /> | <img src="D:\TyporaProject\图片\MenuSystem\custom_info.png" alt="custom_info" style="zoom: 80%;" /> |
+| <img src="../图片/MenuSystem/food_type.png" alt="food_type" style="zoom: 80%;" /> | <img src="../图片/MenuSystem/custom_info.png" alt="custom_info" style="zoom: 80%;" /> |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
 ### 2.收获与感想
